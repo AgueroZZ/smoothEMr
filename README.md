@@ -16,7 +16,7 @@ strategies.
 You can install the development version of `smoothEMr` like so:
 
 ``` r
-pak::pak("agueroZZ/smoothEMr")
+pak::pak("AgueroZZ/smoothEMr")
 ```
 
 ## Example
