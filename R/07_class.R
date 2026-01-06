@@ -1,3 +1,5 @@
+# internal helper
+`%||%` <- function(x, y) if (is.null(x)) y else x
 
 #' Print method for smooth_em objects
 #'
@@ -53,10 +55,6 @@ print.smooth_em <- function(x, ...) {
 
   invisible(x)
 }
-
-# helper: a tiny null-coalescing operator (internal)
-`%||%` <- function(a, b) if (!is.null(a)) a else b
-
 
 #' Summary method for smooth_em objects
 #'
@@ -258,12 +256,6 @@ as_smooth_em <- function(
   class(obj) <- "smooth_em"
   obj
 }
-
-# internal helper
-`%||%` <- function(x, y) if (is.null(x)) y else x
-
-
-
 
 #' Run SmoothEM for a given number of iterations on a smooth_em object
 #'
