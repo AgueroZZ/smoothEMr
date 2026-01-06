@@ -70,6 +70,7 @@ then non-multi-scale methods default to <code>K = 2^m_max + 1</code>.</p>
 <span>  m_max <span class="op">=</span> <span class="fl">6</span>,</span>
 <span>  K <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  adaptive <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  quiet <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -84,8 +85,7 @@ then non-multi-scale methods default to <code>K = 2^m_max + 1</code>.</p>
 
 
 <dt id="arg-methods">methods<a class="anchor" aria-label="anchor" href="#arg-methods"></a></dt>
-<dd><p>Character vector of methods to try. Defaults to
-<code>c("PCA","tSNE","random","fiedler","multi_scale")</code>.</p></dd>
+<dd><p>Character vector of methods to try.</p></dd>
 
 
 <dt id="arg-num-iter">num_iter<a class="anchor" aria-label="anchor" href="#arg-num-iter"></a></dt>
@@ -105,8 +105,12 @@ then non-multi-scale methods default to <code>K = 2^m_max + 1</code>.</p>
 
 
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
-<dd><p>Optional base seed for reproducibility. If provided, each method gets a deterministic
-derived seed.</p></dd>
+<dd><p>Optional base seed for reproducibility.</p></dd>
+
+
+<dt id="arg-adaptive">adaptive<a class="anchor" aria-label="anchor" href="#arg-adaptive"></a></dt>
+<dd><p>Logical; whether to enable adaptive lambda during the continuation phase
+(handled inside <code><a href="initialize_smoothEM.html">initialize_smoothEM()</a></code> / <code><a href="do_smoothEM.html">do_smoothEM()</a></code>).</p></dd>
 
 
 <dt id="arg-quiet">quiet<a class="anchor" aria-label="anchor" href="#arg-quiet"></a></dt>
@@ -120,8 +124,8 @@ derived seed.</p></dd>
     <div id="value">
     <h2>Value</h2>
     <p>A named list of <code>smooth_em</code> objects (or <code>NULL</code> for failed fits),
-with attributes:</p><ul><li><p><code>summary</code>: a data.frame summarizing last ELBO / last objective for each method.</p></li>
-</ul></div>
+with attribute <code>summary</code>.</p>
+    </div>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

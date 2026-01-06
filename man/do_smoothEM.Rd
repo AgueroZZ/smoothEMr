@@ -11,6 +11,9 @@ do_smoothEM(
   record = TRUE,
   check_decrease = TRUE,
   tol_decrease = 1e-10,
+  adaptive = TRUE,
+  lambda_min = NULL,
+  lambda_max = NULL,
   verbose = FALSE
 )
 }
@@ -26,6 +29,10 @@ do_smoothEM(
 \item{check_decrease}{Logical; if TRUE, rollback if ELBO decreases materially.}
 
 \item{tol_decrease}{Numeric; tolerance for considering ELBO decrease (default 1e-10).}
+
+\item{adaptive}{Logical; if TRUE, update \code{lambda} each iteration (profile-style update).}
+
+\item{lambda_min, lambda_max}{Bounds for adaptive lambda (ignored if adaptive=FALSE).}
 
 \item{verbose}{Logical.}
 }

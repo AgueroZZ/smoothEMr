@@ -19,6 +19,7 @@ initialize_smoothEM(
   eigen_tol = NULL,
   keep_history = FALSE,
   include.data = TRUE,
+  adaptive = TRUE,
   ...
 )
 }

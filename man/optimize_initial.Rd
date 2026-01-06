@@ -11,8 +11,9 @@ optimize_initial(
   num_cores = 2,
   m_max = 6,
   K = NULL,
+  adaptive = TRUE,
   plot = FALSE,
-  two_panel = TRUE,
+  two_panel = FALSE,
   seed = NULL,
   quiet = TRUE,
   ...
@@ -21,7 +22,7 @@ optimize_initial(
 \arguments{
 \item{X}{Numeric matrix (n x d).}
 
-\item{methods}{Methods to try (passed to \code{parallel_initial()}).}
+\item{methods}{Methods to try.}
 
 \item{num_iter}{Number of iterations for each fit.}
 
@@ -30,6 +31,8 @@ optimize_initial(
 \item{m_max}{Used for multi_scale and default K for others.}
 
 \item{K}{Optional K for non-multi-scale methods.}
+
+\item{adaptive}{Logical; whether to enable adaptive lambda during fitting.}
 
 \item{plot}{Logical; if TRUE, plot traces.}
 
@@ -50,7 +53,4 @@ A \code{smooth_em} object (best by last ELBO). The returned object gains:
 \description{
 Runs \code{parallel_initial()} and returns the \code{smooth_em} object with the
 largest last-iteration ELBO.
-
-If \code{plot=TRUE}, plots all ELBO traces (different line types) and optionally
-overlays the penalized objective traces in a second panel.
 }

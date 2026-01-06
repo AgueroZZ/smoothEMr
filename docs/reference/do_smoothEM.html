@@ -61,6 +61,9 @@
 <span>  record <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  check_decrease <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  tol_decrease <span class="op">=</span> <span class="fl">1e-10</span>,</span>
+<span>  adaptive <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  lambda_min <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  lambda_max <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -91,6 +94,14 @@
 
 <dt id="arg-tol-decrease">tol_decrease<a class="anchor" aria-label="anchor" href="#arg-tol-decrease"></a></dt>
 <dd><p>Numeric; tolerance for considering ELBO decrease (default 1e-10).</p></dd>
+
+
+<dt id="arg-adaptive">adaptive<a class="anchor" aria-label="anchor" href="#arg-adaptive"></a></dt>
+<dd><p>Logical; if TRUE, update <code>lambda</code> each iteration (profile-style update).</p></dd>
+
+
+<dt id="arg-lambda-min-lambda-max">lambda_min, lambda_max<a class="anchor" aria-label="anchor" href="#arg-lambda-min-lambda-max"></a></dt>
+<dd><p>Bounds for adaptive lambda (ignored if adaptive=FALSE).</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>

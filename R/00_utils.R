@@ -1,3 +1,7 @@
+# internal helper
+`%||%` <- function(x, y) if (is.null(x)) y else x
+
+
 #' Generalized log-determinant (sum of log positive eigenvalues)
 #'
 #' Computes \eqn{\sum_i \log(\lambda_i)} over eigenvalues \eqn{\lambda_i}

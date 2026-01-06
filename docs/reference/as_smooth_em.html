@@ -57,6 +57,7 @@
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">as_smooth_em</span><span class="op">(</span></span>
 <span>  <span class="va">fit</span>,</span>
 <span>  Q_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  Q_base <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  q <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  ridge <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -80,11 +81,15 @@
 
 
 <dt id="arg-q-prior">Q_prior<a class="anchor" aria-label="anchor" href="#arg-q-prior"></a></dt>
-<dd><p>Optional precision matrix used in fitting (stored for continuing).</p></dd>
+<dd><p>Optional precision matrix used in fitting (legacy; discouraged for continuing).</p></dd>
+
+
+<dt id="arg-q-base">Q_base<a class="anchor" aria-label="anchor" href="#arg-q-base"></a></dt>
+<dd><p>Optional *base* precision matrix (without lambda). Recommended.</p></dd>
 
 
 <dt id="arg-lambda">lambda<a class="anchor" aria-label="anchor" href="#arg-lambda"></a></dt>
-<dd><p>Optional penalty strength used to build <code>Q_prior</code>.</p></dd>
+<dd><p>Optional penalty strength; used with <code>Q_base</code>.</p></dd>
 
 
 <dt id="arg-q">q<a class="anchor" aria-label="anchor" href="#arg-q"></a></dt>
@@ -92,7 +97,7 @@
 
 
 <dt id="arg-ridge">ridge<a class="anchor" aria-label="anchor" href="#arg-ridge"></a></dt>
-<dd><p>Optional ridge used in building <code>Q_prior</code>.</p></dd>
+<dd><p>Optional ridge used in building <code>Q_base</code>.</p></dd>
 
 
 <dt id="arg-modelname">modelName<a class="anchor" aria-label="anchor" href="#arg-modelname"></a></dt>

@@ -12,6 +12,7 @@ parallel_initial(
   m_max = 6,
   K = NULL,
   seed = NULL,
+  adaptive = TRUE,
   quiet = TRUE,
   ...
 )
@@ -19,8 +20,7 @@ parallel_initial(
 \arguments{
 \item{X}{Numeric matrix (n x d).}
 
-\item{methods}{Character vector of methods to try. Defaults to
-\code{c("PCA","tSNE","random","fiedler","multi_scale")}.}
+\item{methods}{Character vector of methods to try.}
 
 \item{num_iter}{Integer >= 1. Number of EM iterations to run for each method.}
 
@@ -30,8 +30,10 @@ parallel_initial(
 
 \item{K}{Optional integer grid size for non-multi-scale methods. If NULL, uses \code{2^m_max+1}.}
 
-\item{seed}{Optional base seed for reproducibility. If provided, each method gets a deterministic
-derived seed.}
+\item{seed}{Optional base seed for reproducibility.}
+
+\item{adaptive}{Logical; whether to enable adaptive lambda during the continuation phase
+(handled inside \code{initialize_smoothEM()} / \code{do_smoothEM()}).}
 
 \item{quiet}{Logical; suppress messages from workers.}
 
@@ -39,10 +41,7 @@ derived seed.}
 }
 \value{
 A named list of \code{smooth_em} objects (or \code{NULL} for failed fits),
-with attributes:
-\itemize{
-  \item \code{summary}: a data.frame summarizing last ELBO / last objective for each method.
-}
+with attribute \code{summary}.
 }
 \description{
 Runs \code{initialize_smoothEM()} for a set of initialization methods in parallel.

@@ -79,7 +79,7 @@ fit <- initialize_smoothEM(X = as.matrix(sim$obs), method = "tSNE", rw_q = 2)
 
 # run 10 iterations of smoothEM
 fit <- fit |>
-  do_smoothEM(iter = 30)
+  do_smoothEM(iter = 10)
 
 # plot results
 plot(fit)
@@ -106,7 +106,7 @@ plot(fit_pca)
 
 ``` r
 
-fit_fiedler <- initialize_smoothEM(X = as.matrix(sim$obs), method = "fiedler", rw_q = 2, lambda = 2) |>
+fit_fiedler <- initialize_smoothEM(X = as.matrix(sim$obs), method = "fiedler", rw_q = 2) |>
   do_smoothEM(iter = 50)
 plot(fit_fiedler)
 ```
@@ -145,7 +145,7 @@ plot(best_fit)
 
 <img src="man/figures/README-unnamed-chunk-5-3.png" width="100%" />
 
-If we choose a different choice of `num_cores`, we could end up with a
+If we choose a different choice of `num_iter`, we could end up with a
 different optimal initialization:
 
 ``` r
@@ -167,27 +167,3 @@ plot(best_2, plot_type = "scatterplot", dims = c(1,2))
 ```
 
 <img src="man/figures/README-unnamed-chunk-6-2.png" width="100%" />
-
-Another important parameter to tune is the smoothing parameter `lambda`,
-which can lead to very different results:
-
-``` r
-best_lambda <- optimize_initial(
-  as.matrix(sim$obs),
-  num_iter = 30,
-  num_cores = 6,
-  lambda = 11,
-  m_max = 6,
-  two_panel = FALSE,
-  plot = TRUE
-)
-```
-
-<img src="man/figures/README-unnamed-chunk-7-1.png" width="100%" />
-
-``` r
-
-plot(best_lambda, plot_type = "scatterplot", dims = c(1,2))
-```
-
-<img src="man/figures/README-unnamed-chunk-7-2.png" width="100%" />

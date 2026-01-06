@@ -7,6 +7,7 @@
 as_smooth_em(
   fit,
   Q_prior = NULL,
+  Q_base = NULL,
   lambda = NULL,
   q = NULL,
   ridge = NULL,
@@ -23,13 +24,15 @@ as_smooth_em(
 \arguments{
 \item{fit}{Output list from \code{EM_algorithm()}.}
 
-\item{Q_prior}{Optional precision matrix used in fitting (stored for continuing).}
+\item{Q_prior}{Optional precision matrix used in fitting (legacy; discouraged for continuing).}
 
-\item{lambda}{Optional penalty strength used to build \code{Q_prior}.}
+\item{Q_base}{Optional *base* precision matrix (without lambda). Recommended.}
+
+\item{lambda}{Optional penalty strength; used with \code{Q_base}.}
 
 \item{q}{Optional RW order, if relevant.}
 
-\item{ridge}{Optional ridge used in building \code{Q_prior}.}
+\item{ridge}{Optional ridge used in building \code{Q_base}.}
 
 \item{modelName}{Covariance model used in M-step (e.g. "EEI").}
 

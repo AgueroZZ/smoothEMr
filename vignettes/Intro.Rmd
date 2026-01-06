@@ -63,11 +63,11 @@ Now we fit a smoothEM model to the noisy observations.
 
 ```{r}
 # initialize using tSNE
-fit <- initialize_smoothEM(X = as.matrix(sim$obs), method = "tSNE", rw_q = 2)
+fit <- initialize_smoothEM(X = as.matrix(sim$obs), method = "tSNE", adaptive = FALSE)
 
 # run 10 iterations of smoothEM
 fit <- fit |>
-  do_smoothEM(iter = 30)
+  do_smoothEM(iter = 30, adaptive = FALSE)
 
 # plot results
 plot(fit)
@@ -78,12 +78,12 @@ plot(fit, plot_type = "elbo")
 We could also try other initialization methods, such as PCA or Fiedler vector initialization.
 
 ```{r}
-fit_pca <- initialize_smoothEM(X = as.matrix(sim$obs), method = "PCA", rw_q = 2) |>
-  do_smoothEM(iter = 50)
+fit_pca <- initialize_smoothEM(X = as.matrix(sim$obs), method = "PCA",  adaptive = FALSE) |>
+  do_smoothEM(iter = 50, adaptive = FALSE)
 plot(fit_pca)
 
-fit_fiedler <- initialize_smoothEM(X = as.matrix(sim$obs), method = "fiedler", rw_q = 2, lambda = 2) |>
-  do_smoothEM(iter = 50)
+fit_fiedler <- initialize_smoothEM(X = as.matrix(sim$obs), method = "fiedler", adaptive = FALSE) |>
+  do_smoothEM(iter = 50, adaptive = FALSE)
 plot(fit_fiedler)
 ```
 
@@ -97,13 +97,14 @@ best <- optimize_initial(
   num_cores = 6,
   m_max = 6,
   two_panel = FALSE,
+  adaptive = FALSE,
   plot = TRUE
 )
 
 plot(best, plot_type = "scatterplot", dims = c(1,2))
 
 best_fit <- best |>
-  do_smoothEM(iter = 50)
+  do_smoothEM(iter = 50, adaptive = FALSE)
 
 plot(best_fit)
 ```
@@ -118,6 +119,7 @@ best_2 <- optimize_initial(
   num_cores = 6,
   m_max = 6,
   two_panel = FALSE,
+  adaptive = FALSE,
   plot = TRUE
 )
 
@@ -134,6 +136,7 @@ best_lambda <- optimize_initial(
   lambda = 11,
   m_max = 6,
   two_panel = FALSE,
+  adaptive = FALSE,
   plot = TRUE
 )
 
@@ -144,26 +147,33 @@ plot(best_lambda, plot_type = "scatterplot", dims = c(1,2))
 Compare the optimized ELBO values for different lambda values:
 
 ```{r}
-lambda_vec <- seq(9, 11, length.out = 30)
+lambda_vec <- seq(9, 11, length.out = 20)
 elbo_vals <- sapply(lambda_vec, function(lam) {
   fit_lam <- initialize_smoothEM(
     X = as.matrix(sim$obs),
     method = "fiedler",
     K = 65,
-    rw_q = 2,
-    lambda = lam
+    lambda = lam,
+    adaptive = FALSE
   ) |>
-    do_smoothEM(iter = 30)
+    do_smoothEM(iter = 30, adaptive = FALSE)
   fit_lam$elbo[length(fit_lam$elbo)]
 })
 plot(lambda_vec, elbo_vals, type = "b", pch = 16,
      xlab = expression(lambda), ylab = "Optimized ELBO",
      main = "Effect of Smoothing Parameter on ELBO")
-
 ```
 
+A more "adaptive" fitting procedure involves updating the smoothing parameter `lambda` at each iteration based on the current $\hat{U}$ estimate:
+\[
+\hat{\lambda}^{(i)} = \arg\max_{\lambda} ELBO(\hat{U}^{(i)}, \lambda^{(i-1)}).
+\]
 
-
+```{r}
+fit_adaptive <- initialize_smoothEM(X = as.matrix(sim$obs), method = "fiedler", adaptive = TRUE) |>
+  do_smoothEM(iter = 30, adaptive = TRUE)
+plot(fit_adaptive)
+```
 
 
 
