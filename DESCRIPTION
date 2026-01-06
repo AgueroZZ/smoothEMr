@@ -1,0 +1,22 @@
+Package: smoothEMr
+Type: Package
+Title: Efficient Implementation of SmoothEM in R
+Version: 0.1.0
+Authors@R: c(
+    person(
+      "Ziang", "Zhang",
+      email = "aguero.zhang@gmail.com",
+      role = c("aut", "cre")
+    )
+  )
+Description: A R package that performs SmoothEM using various priors and initializations.
+License: GPL (>= 3)
+Encoding: UTF-8
+LazyData: true
+Imports:
+    mclust
+RoxygenNote: 7.3.3
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

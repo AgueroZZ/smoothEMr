@@ -1,0 +1,6 @@
+pandoc: 3.6.3
+pkgdown: 2.2.0
+pkgdown_sha: ~
+articles:
+  Intro: Intro.html
+last_built: 2026-01-06T15:01Z
