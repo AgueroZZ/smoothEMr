@@ -69,7 +69,7 @@ make_VAR1_precision <- function(K, d, A = NULL, Q = NULL, P0 = NULL) {
 
 #' Prior precision for q-th order random walk on K time points (d-dimensional)
 #'
-#' Constructs Q = lambda * (D_q' D_q) \kron I_d, with optional ridge.
+#' Constructs Q = lambda * (D_q' D_q) kronecker I_d, with optional ridge.
 #'
 #' @param K integer number of time points.
 #' @param d integer dimension of the process at each time.

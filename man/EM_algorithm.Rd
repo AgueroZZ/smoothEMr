@@ -6,14 +6,16 @@
 \alias{ESTEP}
 \alias{MSTEP}
 \alias{EM_algorithm}
-\title{Internal objective utilities for SmoothEM}
+\title{Internal E-step for SmoothEM}
 \usage{
 compute_log_joint_observed(
   X,
   params,
   Q_prior = NULL,
   eigen_tol = NULL,
-  rank_deficiency = 0
+  rank_deficiency = 0,
+  Q_base = NULL,
+  lambda = NULL
 )
 
 compute_penalized_ELBO(
@@ -22,7 +24,9 @@ compute_penalized_ELBO(
   params,
   Q_prior = NULL,
   eigen_tol = NULL,
-  rank_deficiency = 0
+  rank_deficiency = 0,
+  Q_base = NULL,
+  lambda = NULL
 )
 
 ESTEP(data, params)
@@ -61,8 +65,6 @@ EM_algorithm(
 )
 }
 \arguments{
-\item{X}{Numeric matrix \code{(n x d)} of observations.}
-
 \item{params}{Current parameter list (used mainly for starting \code{sigma}).}
 
 \item{Q_prior}{Optional precision matrix on stacked means (\code{d*K x d*K}).}
@@ -70,8 +72,6 @@ EM_algorithm(
 \item{eigen_tol}{Optional tolerance passed to \code{generalized_logdet()}.}
 
 \item{rank_deficiency}{Rank deficiency for pseudo-determinant correction (commonly \code{q*d}).}
-
-\item{Gamma}{Numeric matrix \code{(n x K)} of responsibilities (rows sum to 1).}
 
 \item{data}{Numeric matrix \code{(n x d)} of observations.}
 
@@ -102,11 +102,6 @@ EM_algorithm(
 \item{include.data}{Logical; if TRUE, include \code{data} in the returned list.}
 }
 \value{
-\itemize{
-  \item \code{compute_log_joint_observed}: scalar penalized observed-data log-likelihood.
-  \item \code{compute_penalized_ELBO}: scalar penalized ELBO.
-}
-
 Numeric matrix \code{(n x K)} of responsibilities.
 
 List with updated \code{pi}, \code{mu}, \code{sigma}.
@@ -120,10 +115,6 @@ A list with:
 }
 }
 \description{
-Internal helper functions used by \code{\link{EM_algorithm}} to evaluate the
-penalized observed-data objective and the penalized ELBO (Q-function + entropy),
-optionally including a Gaussian prior penalty on the stacked mean vector.
-
 Computes responsibilities \eqn{\gamma_{ik}} given current parameters.
 Expects \code{params$invSigma} and \code{params$logdet} to be precomputed
 (see \code{init_cov_cache_fast()}).

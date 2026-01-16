@@ -23,5 +23,5 @@ make_random_walk_precision(K, d, q = 1, lambda = 1, ridge = 0, sparse = FALSE)
 (dK) x (dK) precision matrix.
 }
 \description{
-Constructs Q = lambda * (D_q' D_q) \kron I_d, with optional ridge.
+Constructs Q = lambda * (D_q' D_q) kronecker I_d, with optional ridge.
 }
