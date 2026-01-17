@@ -152,6 +152,8 @@ fit <- initialize_csmoothEM(
   X = as.matrix(sim$obs),
   method = "fiedler",
   adaptive = FALSE,
+  k = 15,
+  K = 100,
   lambda = 10
 )
 fit
@@ -161,7 +163,7 @@ The key function `do_csmoothEM()` runs smooth-EM updates for a given number of i
 
 ```{r}
 fit <- fit |>
-  do_csmoothEM(iter = 30)
+  do_csmoothEM(iter = 1)
 
 plot(fit)
 ```

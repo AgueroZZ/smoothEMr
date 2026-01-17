@@ -423,11 +423,143 @@ plot.smooth_em <- function(x,
 
 
 
+#' Plot a 2D embedding with Smooth-EM component means overlaid
+#'
+#' @description
+#' Plot an \eqn{n \times 2} embedding (e.g., two selected dimensions, PCA/t-SNE/UMAP)
+#' and overlay the Smooth-EM component means (\code{mu_list}) as points connected by arrows.
+#' Optionally color observations by a continuous vector (e.g., a Fiedler vector).
+#'
+#' @param mu_list A length-\eqn{K} list of mean vectors. Each element should be a numeric vector
+#'   of length at least 2, where the first two entries correspond to the coordinates in \code{X2}.
+#' @param X2 Numeric matrix of dimension \eqn{n \times 2} giving the embedding coordinates for observations.
+#' @param t_vec Optional numeric vector of length \eqn{n}. If provided, points are colored by \code{t_vec}
+#'   using \code{pal}.
+#' @param mu_order Optional integer permutation of \code{1:K} specifying the plotting order of components.
+#'   Defaults to \code{1:K}.
+#' @param pch Point character for observations (passed to \code{\link[graphics]{points}} / \code{\link[graphics]{plot}}).
+#' @param col Observation color used when \code{t_vec} is \code{NULL}.
+#' @param cex Point size for observations.
+#' @param mu_pch Point character for component means.
+#' @param mu_col Color for component means.
+#' @param mu_cex Point size for component means.
+#' @param arrow_col Color for arrows connecting consecutive component means.
+#' @param arrow_lwd Line width for arrows.
+#' @param arrow_len Arrow head length (see \code{\link[graphics]{arrows}}).
+#' @param add Logical; if \code{TRUE}, add to an existing plot. If \code{FALSE}, create a new plot.
+#' @param xlab,ylab Axis labels. If \code{NULL}, defaults to \code{"dim 1"} and \code{"dim 2"}.
+#' @param main Plot title. If \code{NULL}, uses a default title.
+#' @param add_legend Logical; if \code{TRUE} and \code{t_vec} is provided, add a small legend (quantile ticks).
+#' @param legend_title Title for the legend when \code{t_vec} is provided.
+#' @param pal A vector of colors used to map \code{t_vec} to point colors. Defaults to a blue-white-red palette.
+#' @param ... Additional arguments passed to \code{\link[graphics]{plot}} when \code{add = FALSE}.
+#'
+#' @return An invisible list with elements:
+#' \itemize{
+#'   \item \code{X2}: the embedding coordinates used for plotting.
+#'   \item \code{mu}: the \eqn{K \times 2} matrix of plotted component means (after \code{mu_order}).
+#'   \item \code{mu_order}: the component order used.
+#' }
+#'
+#' @examples
+#' set.seed(1)
+#' n <- 50
+#' X2 <- cbind(rnorm(n), rnorm(n))
+#' mu_list <- list(c(-1, -1), c(0, 0), c(1, 1))
+#' t_vec <- rnorm(n)
+#'
+#' plot_EM_embedding2D(mu_list, X2)
+#' plot_EM_embedding2D(mu_list, X2, t_vec = t_vec, legend_title = "Fiedler")
+#'
+#' @export
+plot_EM_embedding2D <- function(
+    mu_list,
+    X2,
+    t_vec = NULL,
+    mu_order = NULL,
+    pch = 19,
+    col = "grey60",
+    cex = 0.7,
+    mu_pch = 8,
+    mu_col = "orange",
+    mu_cex = 1.0,
+    arrow_col = "orange",
+    arrow_lwd = 2.5,
+    arrow_len = 0.08,
+    add = FALSE,
+    xlab = NULL,
+    ylab = NULL,
+    main = NULL,
+    add_legend = !is.null(t_vec),
+    legend_title = "t",
+    pal = grDevices::colorRampPalette(c("#2b8cbe", "white", "#de2d26"))(256),
+    ...
+) {
+  X2 <- as.matrix(X2)
+  if (!is.matrix(X2) || ncol(X2) != 2) stop("X2 must be an n x 2 matrix.")
+  n <- nrow(X2)
 
+  K <- length(mu_list)
+  if (K < 1) stop("mu_list must be a non-empty list.")
+  mu_mat <- do.call(rbind, mu_list)
+  if (!is.matrix(mu_mat) || nrow(mu_mat) != K) stop("Cannot rbind mu_list into a K x d matrix.")
+  if (ncol(mu_mat) < 2) stop("Each mu must have at least 2 entries.")
 
+  mup <- mu_mat[, 1:2, drop = FALSE]
 
+  if (is.null(mu_order)) mu_order <- seq_len(K)
+  mu_order <- as.integer(mu_order)
+  if (length(mu_order) != K || any(sort(mu_order) != seq_len(K))) {
+    stop("mu_order must be a permutation of 1:K.")
+  }
+  mup <- mup[mu_order, , drop = FALSE]
 
+  if (!is.null(t_vec)) {
+    if (length(t_vec) != n) stop("t_vec must have length nrow(X2).")
+    rng <- range(t_vec, na.rm = TRUE)
+    z <- (t_vec - rng[1]) / (rng[2] - rng[1] + 1e-12)
+    idx <- pmax(1L, pmin(256L, 1L + floor(z * 255)))
+    pt_col <- pal[idx]
+  } else {
+    pt_col <- col
+  }
 
+  if (is.null(xlab)) xlab <- "dim 1"
+  if (is.null(ylab)) ylab <- "dim 2"
+  if (is.null(main)) main <- "EM embedding (2D)"
 
+  if (!add) {
+    graphics::plot(X2[, 1], X2[, 2],
+                   pch = pch, col = pt_col, cex = cex,
+                   xlab = xlab, ylab = ylab, main = main, ...
+    )
+  } else {
+    graphics::points(X2[, 1], X2[, 2], pch = pch, col = pt_col, cex = cex, ...)
+  }
 
+  if (K >= 2) {
+    for (k in 1:(K - 1)) {
+      graphics::arrows(
+        mup[k, 1], mup[k, 2],
+        mup[k + 1, 1], mup[k + 1, 2],
+        col = arrow_col, lwd = arrow_lwd, length = arrow_len
+      )
+    }
+  }
+  graphics::points(mup[, 1], mup[, 2], pch = mu_pch, col = mu_col, cex = mu_cex)
 
+  if (!is.null(t_vec) && isTRUE(add_legend)) {
+    qs <- stats::quantile(t_vec, probs = c(0.05, 0.5, 0.95), na.rm = TRUE)
+    rng <- range(t_vec, na.rm = TRUE)
+    zq <- (qs - rng[1]) / (rng[2] - rng[1] + 1e-12)
+    idxq <- pmax(1L, pmin(256L, 1L + floor(zq * 255)))
+    graphics::legend(
+      "topright",
+      legend = sprintf("%.3g", qs),
+      col = pal[idxq], pch = 16, pt.cex = 1,
+      bty = "n", title = legend_title
+    )
+  }
+
+  invisible(list(X2 = X2, mu = mup, mu_order = mu_order))
+}

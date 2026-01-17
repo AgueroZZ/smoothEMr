@@ -248,3 +248,228 @@ simulate_two_order_gp_dataset <- function(
     row_perm_block2 = row_perm_block2
   )
 }
+
+
+
+
+#' Plot a 2D embedding colored by an ordering vector with EM means overlaid
+#'
+#' @description
+#' Given an \eqn{n \times 2} embedding (\code{coords}) and a continuous ordering vector
+#' (\code{order_vec}), this function bins observations by \code{order_vec} (either by
+#' quantiles or equal-width bins) and colors points by the resulting bins. It then overlays
+#' SmoothEM component means (\code{mu_list}) as points connected by arrows.
+#'
+#' @param coords Numeric matrix of dimension \eqn{n \times 2}.
+#' @param order_vec Numeric vector of length \eqn{n}. Any continuous ordering/score vector.
+#' @param mu_list A length-\eqn{K} list of mean vectors; each element must have at least 2 entries.
+#'   The first two entries are used as coordinates in the same 2D space as \code{coords}.
+#' @param method Binning method for \code{order_vec}: \code{"quantiles"} or \code{"seq"}.
+#'   If \code{"auto"}, defaults to \code{"seq"}.
+#' @param probs Quantile breakpoints (used when \code{method = "quantiles"}).
+#' @param nbins Number of equal-width bins (used when \code{method = "seq"}).
+#' @param include_lowest,right Passed to \code{\link[base]{cut}}.
+#' @param only Optional subset of bins to plot; either integer bin indices or bin labels.
+#' @param fixed_limits Logical; if \code{TRUE}, keep \code{xlim}/\code{ylim} fixed to the full
+#'   \code{coords} range even when \code{only} is used.
+#' @param pal Optional vector of colors (length = number of plotted bins). If \code{NULL}, a blue-white-red palette is used.
+#' @param pch,cex Point style for observations.
+#' @param add_centroid Logical; if \code{TRUE}, add per-bin centroids (computed on plotted subset).
+#' @param centroid_pch,centroid_cex,centroid_lwd,centroid_labels,label_cex,label_pos Centroid styling.
+#' @param mu_order Optional permutation of \code{1:K} controlling the overlay order of \code{mu_list}.
+#' @param mu_pch,mu_col,mu_cex Styling for mean points.
+#' @param arrow_col,arrow_lwd,arrow_len Styling for arrows.
+#' @param add_legend,legend_loc,legend_cex,legend_title Legend controls. Set \code{legend_loc = "none"} (or \code{NULL}) to suppress legend.
+#' @param asp,xlab,ylab,main Plot controls passed to \code{\link[graphics]{plot}}.
+#' @param ... Additional arguments passed to \code{\link[graphics]{plot}}.
+#'
+#' @return Invisibly returns a list with kept indices, bins, colors, optional bin centroids,
+#' and the plotted mean coordinates.
+#'
+#' @export
+plot_order_EM_overlay2D <- function(
+    coords,
+    order_vec,
+    mu_list,
+    method = c("auto", "quantiles", "seq"),
+    probs = seq(0, 1, by = 0.1),
+    nbins = 30,
+    include_lowest = TRUE,
+    right = TRUE,
+    only = NULL,
+    fixed_limits = TRUE,
+    pal = NULL,
+    pch = 16,
+    cex = 0.7,
+    add_centroid = FALSE,
+    centroid_pch = 4,
+    centroid_cex = 1.2,
+    centroid_lwd = 2,
+    centroid_labels = FALSE,
+    label_cex = 0.8,
+    label_pos = 3,
+    mu_order = NULL,
+    mu_pch = 8,
+    mu_col = "orange",
+    mu_cex = 1.0,
+    arrow_col = "orange",
+    arrow_lwd = 2.5,
+    arrow_len = 0.08,
+    add_legend = FALSE,
+    legend_loc = "none",
+    legend_cex = 0.7,
+    legend_title = NULL,
+    asp = 1,
+    xlab = "dim1",
+    ylab = "dim2",
+    main = "Ordering + EM means",
+    ...
+) {
+  coords <- as.matrix(coords)
+  if (!is.matrix(coords) || ncol(coords) != 2) stop("coords must be an n x 2 matrix.")
+  n_all <- nrow(coords)
+  if (length(order_vec) != n_all) stop("order_vec must have length nrow(coords).")
+
+  method <- match.arg(method)
+
+  # global limits (before filtering)
+  xlim0 <- range(coords[, 1], na.rm = TRUE)
+  ylim0 <- range(coords[, 2], na.rm = TRUE)
+
+  # ---- discretize order_vec into fb (factor bins) ----
+  if (method == "auto") method <- "seq"
+  if (method == "quantiles") {
+    qs <- stats::quantile(order_vec, probs = probs, na.rm = TRUE, type = 7)
+    qs <- unique(as.numeric(qs))
+    if (length(qs) < 2) stop("Not enough unique quantile cutpoints (too many ties in order_vec).")
+    fb0 <- cut(order_vec, breaks = qs, include.lowest = include_lowest, right = right)
+  } else { # "seq"
+    rng <- range(order_vec, na.rm = TRUE)
+    br <- seq(rng[1], rng[2], length.out = nbins + 1)
+    br <- unique(as.numeric(br))
+    if (length(br) < 2) stop("Not enough unique breaks for seq() binning.")
+    fb0 <- cut(order_vec, breaks = br, include.lowest = include_lowest, right = right)
+  }
+
+  # ---- apply only filter (subset bins) ----
+  keep <- rep(TRUE, n_all)
+  fb <- fb0
+  if (!is.null(only)) {
+    lev_all <- levels(fb0)
+    if (is.numeric(only) || is.integer(only)) {
+      only <- as.integer(only)
+      if (any(only < 1 | only > length(lev_all))) stop("only contains out-of-range bin indices.")
+      keep_levels <- lev_all[only]
+    } else {
+      keep_levels <- as.character(only)
+      if (any(!keep_levels %in% lev_all)) stop("only contains unknown bin labels.")
+    }
+    keep <- !is.na(fb0) & (as.character(fb0) %in% keep_levels)
+    fb <- droplevels(fb0[keep])
+    if (sum(keep) == 0) stop("After applying only=..., no observations remain.")
+  } else {
+    keep <- !is.na(fb0)
+    fb <- droplevels(fb0[keep])
+  }
+
+  coords_k <- coords[keep, , drop = FALSE]
+
+  Kb <- nlevels(fb)
+  if (Kb < 1) stop("No bins to plot (all NA?)")
+
+  if (is.null(pal)) {
+    pal <- grDevices::colorRampPalette(c("#2b8cbe", "white", "#de2d26"))(Kb)
+  } else if (length(pal) != Kb) {
+    stop("pal must have length equal to number of plotted bins.")
+  }
+
+  idx <- as.integer(fb)
+  pt_col <- pal[idx]
+
+  xlim_use <- if (isTRUE(fixed_limits)) xlim0 else range(coords_k[, 1], na.rm = TRUE)
+  ylim_use <- if (isTRUE(fixed_limits)) ylim0 else range(coords_k[, 2], na.rm = TRUE)
+
+  # ---- base scatter (colored by bins) ----
+  graphics::plot(coords_k[, 1], coords_k[, 2],
+                 col = pt_col, pch = pch, cex = cex,
+                 asp = asp, xlab = xlab, ylab = ylab, main = main,
+                 xlim = xlim_use, ylim = ylim_use,
+                 ...
+  )
+
+  # ---- optional centroids for bins ----
+  cent_out <- NULL
+  if (isTRUE(add_centroid)) {
+    cent <- vapply(levels(fb), function(lv) {
+      ii <- which(fb == lv)
+      colMeans(coords_k[ii, , drop = FALSE], na.rm = TRUE)
+    }, numeric(2))
+    cent_out <- t(cent)  # Kb x 2
+    graphics::points(cent[1, ], cent[2, ],
+                     pch = centroid_pch, cex = centroid_cex, lwd = centroid_lwd, col = pal
+    )
+
+    if (isTRUE(centroid_labels)) {
+      lab <- as.character(seq_len(Kb))
+    } else if (is.character(centroid_labels)) {
+      if (length(centroid_labels) != Kb) stop("centroid_labels must have length Kb when character.")
+      lab <- centroid_labels
+    } else {
+      lab <- NULL
+    }
+    if (!is.null(lab)) {
+      graphics::text(cent[1, ], cent[2, ],
+                     labels = lab, pos = label_pos, cex = label_cex, col = pal
+      )
+    }
+  }
+
+  # ---- overlay EM means + arrows ----
+  Kmu <- length(mu_list)
+  if (Kmu < 1) stop("mu_list must be a non-empty list.")
+  mu_mat <- do.call(rbind, mu_list)
+  if (!is.matrix(mu_mat) || nrow(mu_mat) != Kmu || ncol(mu_mat) < 2) {
+    stop("Cannot form a K x d matrix from mu_list (need at least 2 columns).")
+  }
+  mup <- mu_mat[, 1:2, drop = FALSE]
+
+  if (is.null(mu_order)) mu_order <- seq_len(Kmu)
+  mu_order <- as.integer(mu_order)
+  if (length(mu_order) != Kmu || any(sort(mu_order) != seq_len(Kmu))) {
+    stop("mu_order must be a permutation of 1:K (K = length(mu_list)).")
+  }
+  mup <- mup[mu_order, , drop = FALSE]
+
+  if (Kmu >= 2) {
+    for (k in 1:(Kmu - 1)) {
+      graphics::arrows(
+        mup[k, 1], mup[k, 2],
+        mup[k + 1, 1], mup[k + 1, 2],
+        col = arrow_col, lwd = arrow_lwd, length = arrow_len
+      )
+    }
+  }
+  graphics::points(mup[, 1], mup[, 2], pch = mu_pch, col = mu_col, cex = mu_cex)
+
+  # ---- legend control ----
+  if (is.character(legend_loc) && length(legend_loc) == 1L && legend_loc == "none") add_legend <- FALSE
+  if (is.null(legend_loc)) add_legend <- FALSE
+  if (isTRUE(add_legend)) {
+    graphics::legend(
+      legend_loc,
+      legend = levels(fb),
+      col = pal, pch = pch,
+      cex = legend_cex, bty = "n",
+      title = legend_title
+    )
+  }
+
+  invisible(list(
+    keep = keep,
+    bins = fb,
+    bin_colors = pal,
+    bin_centroid = cent_out,      # Kb x 2 (or NULL)
+    mu = mup,                     # Kmu x 2
+    mu_order = mu_order
+  ))
+}
