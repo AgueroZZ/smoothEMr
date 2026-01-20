@@ -7,7 +7,7 @@
 initialize_ordering_csmooth(
   X,
   K,
-  method = c("PCA", "fiedler", "pcurve", "tSNE", "random"),
+  method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
   discretization = c("equal", "quantile", "kmeans"),
   modelName = c("homoskedastic", "heteroskedastic"),
   nugget = 0,
@@ -20,7 +20,7 @@ initialize_ordering_csmooth(
 
 \item{K}{Integer >= 2; number of mixture components.}
 
-\item{method}{One of \code{"PCA","fiedler","pcurve","tSNE","random"}.}
+\item{method}{One of \code{"PCA","fiedler","pcurve","tSNE","random", "isomap"}.}
 
 \item{discretization}{One of \code{"equal","quantile","kmeans"}.}
 

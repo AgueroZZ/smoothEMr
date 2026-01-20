@@ -1321,7 +1321,7 @@ make_init_csmooth <- function(
 #'
 #' @param X Numeric matrix (n x d).
 #' @param K Integer >= 2; number of mixture components.
-#' @param method One of \code{"PCA","fiedler","pcurve","tSNE","random"}.
+#' @param method One of \code{"PCA","fiedler","pcurve","tSNE","random", "isomap"}.
 #' @param discretization One of \code{"equal","quantile","kmeans"}.
 #' @param modelName Either \code{"homoskedastic"} or \code{"heteroskedastic"}.
 #' @param nugget Nonnegative scalar added to variance estimates.
@@ -1338,7 +1338,7 @@ make_init_csmooth <- function(
 #' @export
 initialize_ordering_csmooth <- function(
     X, K,
-    method = c("PCA", "fiedler", "pcurve", "tSNE", "random"),
+    method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
     discretization = c("equal", "quantile", "kmeans"),
     modelName = c("homoskedastic", "heteroskedastic"),
     nugget = 0,
@@ -1391,7 +1391,9 @@ initialize_ordering_csmooth <- function(
     PCA     = PCA_ordering(X, ...),
     tSNE    = tSNE_ordering(X, ...),
     pcurve  = pcurve_ordering(X, ...),
-    fiedler = fiedler_ordering(X, ...)
+    fiedler = fiedler_ordering(X, ...),
+    isomap  = isomap_ordering(X, ...),
+    stop("Unknown method: ", method)
   )
 
   init <- make_init_csmooth(
@@ -1434,7 +1436,7 @@ initialize_ordering_csmooth <- function(
 #' }
 #'
 #' @param X n-by-d numeric matrix.
-#' @param method One of \code{"tSNE","PCA","random","fiedler","multi_scale"}.
+#' @param method One of \code{"tSNE","PCA","random","fiedler","multi_scale", "pcurve","isomap"}.
 #'   Currently \code{"multi_scale"} is not implemented for csmoothEM and will error.
 #' @param rw_q Integer RW order along K for \code{Q_K}.
 #' @param lambda Scalar or length-d vector. If scalar, recycled to length d.
@@ -1463,7 +1465,7 @@ initialize_ordering_csmooth <- function(
 #' @param sigma_min,sigma_max Positive bounds for \code{sigma2} when \code{adaptive="ml"} and
 #'   \code{sigma_update="ml"}.
 #' @param discretization Discretization method passed to \code{initialize_ordering_csmooth()}.
-#' @param ... Passed to the ordering method (e.g. PCA/tSNE/pcurve/fiedler).
+#' @param ... Passed to the ordering method (e.g. PCA/tSNE/pcurve/fiedler/isomap).
 #'
 #' @details
 #' Let \eqn{Q_K} denote the RW(q) precision along components. For a separable prior
@@ -1493,7 +1495,7 @@ initialize_ordering_csmooth <- function(
 #' @export
 initialize_csmoothEM <- function(
     X,
-    method = c("tSNE", "PCA", "pcurve", "random", "fiedler", "multi_scale"),
+    method = c("tSNE", "PCA", "pcurve", "random", "fiedler", "multi_scale", "isomap"),
     rw_q = 2,
     lambda = 1,
     relative_lambda = TRUE,
@@ -2131,7 +2133,8 @@ print.summary.csmooth_em <- function(x, ...) {
 #'
 #' @param X Numeric matrix \code{(n x d)}.
 #' @param methods Character vector of initialization methods. Default includes
-#'   \code{"PCA"}, \code{"tSNE"}, \code{"random"}, \code{"fiedler"}, \code{"pcurve"}.
+#'   \code{"PCA"}, \code{"tSNE"}, \code{"random"}, \code{"fiedler"}, \code{"pcurve"}, \code{"isomap"}.
+#'   See \code{\link{initialize_csmoothEM}} for details.
 #' @param num_iter Integer \eqn{\ge 1}. Number of warm-start iterations to run inside
 #'   \code{initialize_csmoothEM} for each method.
 #' @param num_cores Integer \eqn{\ge 1}. Number of cores to use. On non-Windows systems,
@@ -2325,7 +2328,7 @@ parallel_initial_csmoothEM <- function(
 #'
 #' @param X Numeric matrix \code{(n x d)}.
 #' @param methods Character vector of initialization methods. Default includes
-#'   \code{"PCA"}, \code{"tSNE"}, \code{"random"}, \code{"fiedler"}, \code{"pcurve"}.
+#'   \code{"PCA"}, \code{"tSNE"}, \code{"random"}, \code{"fiedler"}, \code{"pcurve"}, \code{"isomap"}.
 #' @param num_iter Integer \eqn{\ge 1}. Number of warm-start iterations to run per method.
 #' @param num_cores Integer \eqn{\ge 1}. Number of cores to use (see \code{\link{parallel_initial_csmoothEM}}).
 #' @param K Optional integer \eqn{\ge 2}. Number of mixture components. If \code{NULL},

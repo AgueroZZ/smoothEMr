@@ -209,7 +209,7 @@ make_init <- function(
 fiedler_ordering <- function(
     X,
     k = 15,
-    weight = c("rbf", "inv", "binary"),
+    weight = c("binary", "rbf", "inv"),
     sigma = NULL,
     keep = c("giant", "all"),
     return_full = TRUE
@@ -402,6 +402,216 @@ pcurve_ordering <- function(
   list(t = t, keep_idx = seq_len(nrow(X)), fit = pc_fit)
 }
 
+#' Landmark Isomap ordering (no vegan; avoids O(n^2) dist matrix)
+#'
+#' @description
+#' Landmark approximation to Isomap for fast ordering. Builds a weighted kNN graph
+#' on rows of \code{X}, computes geodesic distances to a subset of landmark points,
+#' embeds landmarks by classical MDS, then projects all points by inverse-distance
+#' weighted averaging.
+#'
+#' @param X numeric matrix (n x D).
+#' @param k number of nearest neighbors in the kNN graph (2 <= k < n).
+#' @param ndim embedding dimension (>= component).
+#' @param component which embedding coordinate to use as ordering.
+#' @param landmark integer; number of landmark points. If \code{NULL}, uses \code{min(1000, n)}.
+#' @param landmark_method how to choose landmarks: \code{"random"} (default) or \code{"kmeans"}.
+#' @param seed optional integer for reproducibility.
+#' @param keep component handling: \code{"giant"} keeps the largest connected component;
+#'   \code{"all"} uses all nodes (may yield Inf distances if disconnected).
+#' @param return_full if TRUE, return length-n t with NA for excluded nodes (keep="giant").
+#' @param orient_by_pc1 logical; if TRUE, flip sign to align with PC1.
+#' @param scale01 logical; if TRUE, rescale returned t to [0,1].
+#' @param eps small positive number to stabilize inverse-distance weights.
+#' @return list(t, keep_idx, n_components, embed, landmark_idx, geodesic_to_landmark)
+#' @export
+isomap_ordering <- function(
+    X,
+    k = 15,
+    ndim = 1,
+    component = 1,
+    landmark = NULL,
+    landmark_method = c("random", "kmeans"),
+    seed = NULL,
+    keep = c("giant", "all"),
+    return_full = TRUE,
+    orient_by_pc1 = TRUE,
+    scale01 = TRUE,
+    eps = 1e-8
+) {
+  X <- as.matrix(X)
+  n0 <- nrow(X)
+
+  if (n0 < 3) stop("Need n >= 3.")
+  if (k < 2 || k >= n0) stop("Require 2 <= k < n.")
+  if (ndim < 1) stop("ndim must be >= 1.")
+  if (component < 1 || component > ndim) stop("component must be between 1 and ndim.")
+
+  keep <- match.arg(keep)
+  landmark_method <- match.arg(landmark_method)
+
+  if (!is.null(seed)) set.seed(seed)
+
+  # --- kNN graph (weighted by Euclidean distances) ---
+  nn <- RANN::nn2(data = X, query = X, k = k + 1, treetype = "kd")
+  idx  <- nn$nn.idx[, -1, drop = FALSE]
+  dist <- nn$nn.dists[, -1, drop = FALSE]
+
+  i <- rep(seq_len(n0), each = k)
+  j <- as.vector(t(idx))
+  w <- as.vector(t(dist))
+
+  edges <- data.frame(from = i, to = j, weight = w)
+  g <- igraph::graph_from_data_frame(edges, directed = FALSE, vertices = seq_len(n0))
+
+  # --- connected components handling ---
+  comp <- igraph::components(g)
+  keep_idx <- seq_len(n0)
+
+  if (keep == "giant" && comp$no > 1) {
+    giant <- which.max(comp$csize)
+    keep_idx <- which(comp$membership == giant)
+  }
+
+  if (length(keep_idx) < 3) {
+    if (return_full) {
+      return(list(
+        t = rep(NA_real_, n0),
+        keep_idx = keep_idx,
+        n_components = comp$no,
+        embed = NULL,
+        landmark_idx = integer(0),
+        geodesic_to_landmark = NULL
+      ))
+    }
+    stop("Largest connected component has < 3 nodes; increase k or filter outliers.")
+  }
+
+  # induce subgraph if needed
+  if (length(keep_idx) < n0) {
+    gk <- igraph::induced_subgraph(g, vids = keep_idx)
+    Xk <- X[keep_idx, , drop = FALSE]
+  } else {
+    gk <- g
+    Xk <- X
+  }
+
+  n <- nrow(Xk)
+
+  # --- landmark count (always safe) ---
+  if (is.null(landmark)) landmark <- min(1000L, n)
+  landmark <- as.integer(landmark)
+  landmark <- max(3L, min(landmark, n))  # critical: cap to n
+
+  # --- choose landmarks (default random to avoid kmeans-centers pitfalls) ---
+  if (landmark_method == "random") {
+    Lk <- sort(sample.int(n, landmark))
+  } else {
+    # extra safety: centers must be in [1, n]
+    centers <- max(1L, min(landmark, n))
+
+    # kmeans can still error if X has NA/Inf; let it fall back cleanly
+    Lk <- tryCatch({
+      km <- stats::kmeans(Xk, centers = centers, iter.max = 30)
+
+      # nearest observed point to each center
+      nnc <- RANN::nn2(data = Xk, query = km$centers, k = 1, treetype = "kd")
+      L0 <- unique(as.integer(nnc$nn.idx[, 1]))
+
+      # if duplicates reduced count, top up randomly
+      if (length(L0) < 3) L0 <- sort(sample.int(n, min(centers, n)))
+      if (length(L0) < centers) {
+        extra <- setdiff(seq_len(n), L0)
+        if (length(extra) > 0) {
+          add <- sample(extra, min(centers - length(L0), length(extra)))
+          L0 <- sort(c(L0, add))
+        }
+      }
+      sort(L0)
+    }, error = function(e) {
+      # fall back to random landmarks
+      sort(sample.int(n, landmark))
+    })
+  }
+
+  # --- geodesic distances ---
+  D_to_L <- igraph::distances(
+    gk,
+    v = seq_len(n),
+    to = Lk,
+    weights = igraph::E(gk)$weight
+  )
+  D_LL <- D_to_L[Lk, , drop = FALSE]
+
+  if (any(!is.finite(D_LL))) {
+    if (keep == "all") {
+      warning("kNN graph appears disconnected: Inf geodesic distances found. ",
+              "Consider keep='giant' or increase k.")
+    }
+    # For embedding, replace Inf with a large finite value.
+    finite_max <- suppressWarnings(max(D_LL[is.finite(D_LL)]))
+    if (!is.finite(finite_max)) finite_max <- 1
+    D_LL2 <- D_LL
+    D_LL2[!is.finite(D_LL2)] <- 2 * finite_max
+    YL <- stats::cmdscale(as.dist(D_LL2), k = ndim, eig = FALSE)
+  } else {
+    YL <- stats::cmdscale(as.dist(D_LL), k = ndim, eig = FALSE)
+  }
+
+  YL <- as.matrix(YL)
+  if (ncol(YL) < ndim) {
+    YL <- cbind(YL, matrix(0, nrow = nrow(YL), ncol = ndim - ncol(YL)))
+  }
+
+  # --- out-of-sample projection by inverse-distance weighting ---
+  W <- 1 / (pmax(D_to_L, 0) + eps)
+  W[!is.finite(W)] <- 0
+  denom <- rowSums(W)
+  denom[denom <= 0] <- 1
+
+  Y <- (W %*% YL) / denom
+
+  t_kept <- Y[, component]
+
+  if (orient_by_pc1) t_kept <- .orient_by_ref(t_kept, .pc1(Xk))
+  if (scale01) t_kept <- .scale01(t_kept)
+
+  if (return_full) {
+    t_full <- rep(NA_real_, n0)
+    t_full[keep_idx] <- t_kept
+
+    Y_full <- matrix(NA_real_, nrow = n0, ncol = ndim)
+    Y_full[keep_idx, ] <- Y
+
+    landmark_idx_full <- keep_idx[Lk]
+
+    t_out <- t_full
+    embed_out <- Y_full
+    landmark_idx_out <- landmark_idx_full
+  } else {
+    t_out <- t_kept
+    embed_out <- Y
+    landmark_idx_out <- Lk
+  }
+
+  if (comp$no > 1) {
+    warning("The kNN graph has ", comp$no, " connected components; ",
+            "Isomap computed on ", length(keep_idx), " nodes (keep='", keep, "').")
+  }
+
+  list(
+    t = t_out,
+    keep_idx = keep_idx,
+    n_components = comp$no,
+    embed = embed_out,
+    landmark_idx = landmark_idx_out,
+    geodesic_to_landmark = D_to_L
+  )
+}
+
+
+
+
 # =========================
 # Wrapper
 # =========================
@@ -417,7 +627,7 @@ pcurve_ordering <- function(
 #' @export
 initialize_ordering <- function(
     X, K,
-    method = c("PCA", "fiedler", "pcurve", "tSNE", "random"),
+    method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
     discretization = c("equal", "quantile", "kmeans"),
     ...
 ) {
@@ -438,7 +648,9 @@ initialize_ordering <- function(
     PCA     = PCA_ordering(X, ...),
     tSNE    = tSNE_ordering(X, ...),
     pcurve  = pcurve_ordering(X, ...),
-    fiedler = fiedler_ordering(X, ...)
+    fiedler = fiedler_ordering(X, ...),
+    isomap  = isomap_ordering(X, ...),
+    stop("Unknown method: ", method)
   )
 
   init <- make_init(
@@ -525,7 +737,7 @@ initialize_ordering <- function(
 #' }
 initialize_smoothEM <- function(
     X,
-    method = c("tSNE", "PCA", "random", "multi_scale", "fiedler"),
+    method = c("tSNE", "PCA", "random", "multi_scale", "fiedler", "pcurve", "isomap"),
     rw_q = 2,
     lambda = 1,
     relative_lambda = TRUE,
@@ -856,7 +1068,7 @@ initialize_smoothEM <- function(
 #' @export
 parallel_initial <- function(
     X,
-    methods = c("PCA", "tSNE", "random", "fiedler", "multi_scale"),
+    methods = c("PCA", "tSNE", "random", "fiedler", "multi_scale", "pcurve"),
     num_iter = 1,
     num_cores = 2,
     m_max = 6,
@@ -1067,7 +1279,7 @@ parallel_initial <- function(
 #' @export
 optimize_initial <- function(
     X,
-    methods = c("PCA", "tSNE", "random", "fiedler", "multi_scale"),
+    methods = c("PCA", "tSNE", "random", "fiedler", "multi_scale", "pcurve"),
     num_iter = 1,
     num_cores = 2,
     m_max = 6,

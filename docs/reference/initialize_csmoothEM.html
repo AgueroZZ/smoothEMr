@@ -29,7 +29,7 @@ Construct a csmooth_em object via as_csmooth_em(), then run a warm start via
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">smoothEMr</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.1</span>
       </span>
     </div>
 
@@ -80,7 +80,7 @@ and diagonal covariance structures only.</p>
     <div id="ref-usage">
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">initialize_csmoothEM</span><span class="op">(</span></span>
 <span>  <span class="va">X</span>,</span>
-<span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tSNE"</span>, <span class="st">"PCA"</span>, <span class="st">"pcurve"</span>, <span class="st">"random"</span>, <span class="st">"fiedler"</span>, <span class="st">"multi_scale"</span><span class="op">)</span>,</span>
+<span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tSNE"</span>, <span class="st">"PCA"</span>, <span class="st">"pcurve"</span>, <span class="st">"random"</span>, <span class="st">"fiedler"</span>, <span class="st">"multi_scale"</span>, <span class="st">"isomap"</span><span class="op">)</span>,</span>
 <span>  rw_q <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  lambda <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  relative_lambda <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -111,7 +111,7 @@ and diagonal covariance structures only.</p>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
-<dd><p>One of <code>"tSNE","PCA","random","fiedler","multi_scale"</code>.
+<dd><p>One of <code>"tSNE","PCA","random","fiedler","multi_scale", "pcurve","isomap"</code>.
 Currently <code>"multi_scale"</code> is not implemented for csmoothEM and will error.</p></dd>
 
 
@@ -192,7 +192,7 @@ Either <code>"mstep"</code> or <code>"ml"</code>; see <code><a href="do_csmoothE
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Passed to the ordering method (e.g. PCA/tSNE/pcurve/fiedler).</p></dd>
+<dd><p>Passed to the ordering method (e.g. PCA/tSNE/pcurve/fiedler/isomap).</p></dd>
 
 </dl></div>
     <div id="value">

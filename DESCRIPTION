@@ -1,7 +1,7 @@
 Package: smoothEMr
 Type: Package
 Title: Efficient Implementation of SmoothEM in R
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: c(
     person(
       "Ziang", "Zhang",

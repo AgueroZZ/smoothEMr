@@ -25,7 +25,8 @@ parallel_initial_csmoothEM(
 \item{X}{Numeric matrix \code{(n x d)}.}
 
 \item{methods}{Character vector of initialization methods. Default includes
-\code{"PCA"}, \code{"tSNE"}, \code{"random"}, \code{"fiedler"}, \code{"pcurve"}.}
+\code{"PCA"}, \code{"tSNE"}, \code{"random"}, \code{"fiedler"}, \code{"pcurve"}, \code{"isomap"}.
+See \code{\link{initialize_csmoothEM}} for details.}
 
 \item{num_iter}{Integer \eqn{\ge 1}. Number of warm-start iterations to run inside
 \code{initialize_csmoothEM} for each method.}

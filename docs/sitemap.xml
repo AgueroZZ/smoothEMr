@@ -36,6 +36,7 @@
 <url><loc>/reference/initialize_ordering.html</loc></url>
 <url><loc>/reference/initialize_ordering_csmooth.html</loc></url>
 <url><loc>/reference/initialize_smoothEM.html</loc></url>
+<url><loc>/reference/isomap_ordering.html</loc></url>
 <url><loc>/reference/krige_mu_list_to_full_grid.html</loc></url>
 <url><loc>/reference/kriging_from_precision.html</loc></url>
 <url><loc>/reference/lambda_scale_for_spacing.html</loc></url>
@@ -59,8 +60,10 @@
 <url><loc>/reference/plot.csmooth_em.html</loc></url>
 <url><loc>/reference/plot.smooth_em.html</loc></url>
 <url><loc>/reference/plot_EM_embedding.html</loc></url>
+<url><loc>/reference/plot_EM_embedding2D.html</loc></url>
 <url><loc>/reference/plot_coordinate_change.html</loc></url>
 <url><loc>/reference/plot_mu_history.html</loc></url>
+<url><loc>/reference/plot_order_EM_overlay2D.html</loc></url>
 <url><loc>/reference/print.csmooth_em.html</loc></url>
 <url><loc>/reference/print.smooth_em.html</loc></url>
 <url><loc>/reference/print.summary.csmooth_em.html</loc></url>

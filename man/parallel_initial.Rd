@@ -6,7 +6,7 @@
 \usage{
 parallel_initial(
   X,
-  methods = c("PCA", "tSNE", "random", "fiedler", "multi_scale"),
+  methods = c("PCA", "tSNE", "random", "fiedler", "multi_scale", "pcurve"),
   num_iter = 1,
   num_cores = 2,
   m_max = 6,

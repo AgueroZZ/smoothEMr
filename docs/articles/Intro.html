@@ -32,7 +32,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">smoothEMr</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.1</span>
       </span>
     </div>
 
@@ -255,20 +255,22 @@ initialization and fix the smoothing parameter <code>lambda</code> to
 <span>  X <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">obs</span><span class="op">)</span>,</span>
 <span>  method <span class="op">=</span> <span class="st">"fiedler"</span>,</span>
 <span>  adaptive <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  k <span class="op">=</span> <span class="fl">15</span>,</span>
+<span>  K <span class="op">=</span> <span class="fl">100</span>,</span>
 <span>  lambda <span class="op">=</span> <span class="fl">10</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">fit</span></span>
-<span><span class="co">#&gt; Fitted csmoothEM object with RW(2) prior along K = 50</span></span>
+<span><span class="co">#&gt; Fitted csmoothEM object with RW(2) prior along K = 100</span></span>
 <span><span class="co">#&gt; -----</span></span>
 <span><span class="co">#&gt;   n = 1500, d = 2, modelName = homoskedastic</span></span>
 <span><span class="co">#&gt;   iter = 1; init_method = fiedler; adaptive = none;</span></span>
 <span><span class="co">#&gt;   lambda_vec: range=[10, 10], mean=10, relative = TRUE</span></span>
-<span><span class="co">#&gt;   ELBO last = -10676.855810; penLogLik last = -10628.574088; ML/C last = -10629.182592</span></span></code></pre></div>
+<span><span class="co">#&gt;   ELBO last = -10472.720320; penLogLik last = -10383.239352; ML/C last = -10472.704642</span></span></code></pre></div>
 <p>The key function <code><a href="../reference/do_csmoothEM.html">do_csmoothEM()</a></code> runs smooth-EM updates
 for a given number of iterations.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="va">fit</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu"><a href="../reference/do_csmoothEM.html">do_csmoothEM</a></span><span class="op">(</span>iter <span class="op">=</span> <span class="fl">30</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="../reference/do_csmoothEM.html">do_csmoothEM</a></span><span class="op">(</span>iter <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
 <p><img src="Intro_files/figure-html/unnamed-chunk-4-1.png" class="r-plt" width="576"></p>
@@ -330,8 +332,8 @@ step.</p>
 <span><span class="co">#&gt; -----</span></span>
 <span><span class="co">#&gt;   n = 1500, d = 2, modelName = homoskedastic</span></span>
 <span><span class="co">#&gt;   iter = 1; init_method = fiedler; adaptive = ml;</span></span>
-<span><span class="co">#&gt;   lambda_vec: range=[9.5, 14.1], mean=11.8, relative = TRUE</span></span>
-<span><span class="co">#&gt;   ELBO last = -10672.494762; penLogLik last = -10623.434999; ML/C last = -10628.660896</span></span></code></pre></div>
+<span><span class="co">#&gt;   lambda_vec: range=[1.16, 1.39], mean=1.28, relative = TRUE</span></span>
+<span><span class="co">#&gt;   ELBO last = -10548.204455; penLogLik last = -10500.506958; ML/C last = -10525.414589</span></span></code></pre></div>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_ml</span> <span class="op">&lt;-</span> <span class="va">fit_ml</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="../reference/do_csmoothEM.html">do_csmoothEM</a></span><span class="op">(</span>iter <span class="op">=</span> <span class="fl">30</span><span class="op">)</span></span>

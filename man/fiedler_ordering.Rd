@@ -7,7 +7,7 @@
 fiedler_ordering(
   X,
   k = 15,
-  weight = c("rbf", "inv", "binary"),
+  weight = c("binary", "rbf", "inv"),
   sigma = NULL,
   keep = c("giant", "all"),
   return_full = TRUE

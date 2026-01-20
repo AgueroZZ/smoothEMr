@@ -7,7 +7,7 @@
 initialize_ordering(
   X,
   K,
-  method = c("PCA", "fiedler", "pcurve", "tSNE", "random"),
+  method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
   discretization = c("equal", "quantile", "kmeans"),
   ...
 )

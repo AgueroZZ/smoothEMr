@@ -6,7 +6,7 @@
 \usage{
 initialize_csmoothEM(
   X,
-  method = c("tSNE", "PCA", "pcurve", "random", "fiedler", "multi_scale"),
+  method = c("tSNE", "PCA", "pcurve", "random", "fiedler", "multi_scale", "isomap"),
   rw_q = 2,
   lambda = 1,
   relative_lambda = TRUE,
@@ -30,7 +30,7 @@ initialize_csmoothEM(
 \arguments{
 \item{X}{n-by-d numeric matrix.}
 
-\item{method}{One of \code{"tSNE","PCA","random","fiedler","multi_scale"}.
+\item{method}{One of \code{"tSNE","PCA","random","fiedler","multi_scale", "pcurve","isomap"}.
 Currently \code{"multi_scale"} is not implemented for csmoothEM and will error.}
 
 \item{rw_q}{Integer RW order along K for \code{Q_K}.}
@@ -75,7 +75,7 @@ Either \code{"mstep"} or \code{"ml"}; see \code{\link{do_csmoothEM_ml_collapsed}
 
 \item{discretization}{Discretization method passed to \code{initialize_ordering_csmooth()}.}
 
-\item{...}{Passed to the ordering method (e.g. PCA/tSNE/pcurve/fiedler).}
+\item{...}{Passed to the ordering method (e.g. PCA/tSNE/pcurve/fiedler/isomap).}
 }
 \value{
 A \code{csmooth_em} object.

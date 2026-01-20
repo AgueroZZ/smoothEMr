@@ -6,7 +6,7 @@
 \usage{
 initialize_smoothEM(
   X,
-  method = c("tSNE", "PCA", "random", "multi_scale", "fiedler"),
+  method = c("tSNE", "PCA", "random", "multi_scale", "fiedler", "pcurve", "isomap"),
   rw_q = 2,
   lambda = 1,
   relative_lambda = TRUE,
