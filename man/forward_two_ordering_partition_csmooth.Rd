@@ -9,6 +9,10 @@ forward_two_ordering_partition_csmooth(
   K = 30,
   greedy_start_index = NULL,
   greedy_start_index2 = NULL,
+  seeding = c("variance", "correlation"),
+  seed_ordering_vec = NULL,
+  seed_pc_scale = TRUE,
+  seed_cor_abs = TRUE,
   score_mode = c("ml", "none"),
   rw_q = 2,
   relative_lambda = TRUE,
@@ -25,9 +29,25 @@ forward_two_ordering_partition_csmooth(
 
 \item{K}{Integer \eqn{\ge 2}. Number of mixture components.}
 
-\item{greedy_start_index}{Optional integer. First seed feature. If NULL, uses the largest-variance feature.}
+\item{greedy_start_index}{Optional integer. First seed feature. If NULL, chosen by \code{seeding}.}
 
-\item{greedy_start_index2}{Optional integer. Second seed feature. If NULL, chosen as worst under ordering 1.}
+\item{greedy_start_index2}{Optional integer. Second seed feature. If NULL, chosen by \code{seeding} rule above.}
+
+\item{seeding}{Seeding strategy when \code{greedy_start_index} is NULL.
+\describe{
+  \item{\code{"variance"}}{Use the maximum-variance feature as the first seed (default).}
+  \item{\code{"correlation"}}{Use correlation with an ordering vector to choose seeds.}
+}}
+
+\item{seed_ordering_vec}{Optional numeric vector of length \code{n}. Only used when
+\code{seeding="correlation"} and \code{greedy_start_index} is NULL.
+If NULL, defaults to the first PC score of \code{X}.}
+
+\item{seed_pc_scale}{Logical; only used when \code{seed_ordering_vec} is NULL and
+\code{seeding="correlation"}. Passed as \code{scale.} to \code{prcomp}.}
+
+\item{seed_cor_abs}{Logical; if TRUE (default) seed using absolute correlations.
+If FALSE, use signed correlations (max/min correlation).}
 
 \item{score_mode}{One of \code{"ml"} or \code{"none"}.}
 
@@ -63,10 +83,10 @@ its own latent ordering (represented by responsibilities \eqn{\Gamma} over \code
 
 The algorithm mirrors the structure of \code{two_ordering_smoothEM_v2}:
 \enumerate{
-  \item Choose a seed feature \code{j1} (largest variance by default) and fit a 1D csmoothEM model
-        on \code{X[, j1]} to obtain \eqn{\Gamma_1} and parameters \eqn{\theta_1}.
-  \item Choose a second seed feature \code{j2} as the feature with the worst alignment score
-        under \eqn{\Gamma_1}, then fit a 1D model on \code{X[, j2]} to obtain \eqn{\Gamma_2} and \eqn{\theta_2}.
+  \item Choose a seed feature \code{j1} and fit a 1D csmoothEM model on \code{X[, j1]}
+        to obtain \eqn{\Gamma_1} and parameters \eqn{\theta_1}.
+  \item Choose a second seed feature \code{j2} and fit a 1D csmoothEM model on \code{X[, j2]}
+        to obtain \eqn{\Gamma_2} and parameters \eqn{\theta_2}.
   \item While unassigned features remain:
     \itemize{
       \item Score each remaining feature under \eqn{\Gamma_1} and \eqn{\Gamma_2}.
@@ -74,6 +94,23 @@ The algorithm mirrors the structure of \code{two_ordering_smoothEM_v2}:
       \item Append the 1D fitted object to that ordering's parameters and update \eqn{\Gamma} by an E-step.
       \item Optionally run a short csmoothEM refinement on that ordering (controlled by \code{greedy_em_refine}).
     }
+}
+
+Seeding:
+\itemize{
+  \item If \code{greedy_start_index} is provided, it is used as \code{j1}.
+  \item Otherwise, \code{seeding="variance"} chooses \code{j1} as the maximum-variance feature.
+  \item Otherwise, \code{seeding="correlation"} chooses \code{j1} as the feature most correlated
+        (by default, absolute correlation) with an ordering vector \code{seed_ordering_vec}.
+        If \code{seed_ordering_vec} is NULL, the ordering vector defaults to the first PC score of \code{X}.
+}
+
+For \code{j2}:
+\itemize{
+  \item If \code{greedy_start_index2} is provided, it is used as \code{j2}.
+  \item Else if \code{seeding="correlation"} and \code{greedy_start_index} is NULL, choose \code{j2}
+        as the feature least correlated with the same ordering vector used for \code{j1}.
+  \item Else (default), choose \code{j2} as the feature with the worst alignment score under \eqn{\Gamma_1}.
 }
 
 Scoring:

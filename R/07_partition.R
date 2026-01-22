@@ -738,10 +738,10 @@ score_one_coord_csmooth <- function(
 #'
 #' The algorithm mirrors the structure of \code{two_ordering_smoothEM_v2}:
 #' \enumerate{
-#'   \item Choose a seed feature \code{j1} (largest variance by default) and fit a 1D csmoothEM model
-#'         on \code{X[, j1]} to obtain \eqn{\Gamma_1} and parameters \eqn{\theta_1}.
-#'   \item Choose a second seed feature \code{j2} as the feature with the worst alignment score
-#'         under \eqn{\Gamma_1}, then fit a 1D model on \code{X[, j2]} to obtain \eqn{\Gamma_2} and \eqn{\theta_2}.
+#'   \item Choose a seed feature \code{j1} and fit a 1D csmoothEM model on \code{X[, j1]}
+#'         to obtain \eqn{\Gamma_1} and parameters \eqn{\theta_1}.
+#'   \item Choose a second seed feature \code{j2} and fit a 1D csmoothEM model on \code{X[, j2]}
+#'         to obtain \eqn{\Gamma_2} and parameters \eqn{\theta_2}.
 #'   \item While unassigned features remain:
 #'     \itemize{
 #'       \item Score each remaining feature under \eqn{\Gamma_1} and \eqn{\Gamma_2}.
@@ -749,6 +749,23 @@ score_one_coord_csmooth <- function(
 #'       \item Append the 1D fitted object to that ordering's parameters and update \eqn{\Gamma} by an E-step.
 #'       \item Optionally run a short csmoothEM refinement on that ordering (controlled by \code{greedy_em_refine}).
 #'     }
+#' }
+#'
+#' Seeding:
+#' \itemize{
+#'   \item If \code{greedy_start_index} is provided, it is used as \code{j1}.
+#'   \item Otherwise, \code{seeding="variance"} chooses \code{j1} as the maximum-variance feature.
+#'   \item Otherwise, \code{seeding="correlation"} chooses \code{j1} as the feature most correlated
+#'         (by default, absolute correlation) with an ordering vector \code{seed_ordering_vec}.
+#'         If \code{seed_ordering_vec} is NULL, the ordering vector defaults to the first PC score of \code{X}.
+#' }
+#'
+#' For \code{j2}:
+#' \itemize{
+#'   \item If \code{greedy_start_index2} is provided, it is used as \code{j2}.
+#'   \item Else if \code{seeding="correlation"} and \code{greedy_start_index} is NULL, choose \code{j2}
+#'         as the feature least correlated with the same ordering vector used for \code{j1}.
+#'   \item Else (default), choose \code{j2} as the feature with the worst alignment score under \eqn{\Gamma_1}.
 #' }
 #'
 #' Scoring:
@@ -759,8 +776,20 @@ score_one_coord_csmooth <- function(
 #'
 #' @param X Numeric matrix \code{(n x d)}.
 #' @param K Integer \eqn{\ge 2}. Number of mixture components.
-#' @param greedy_start_index Optional integer. First seed feature. If NULL, uses the largest-variance feature.
-#' @param greedy_start_index2 Optional integer. Second seed feature. If NULL, chosen as worst under ordering 1.
+#' @param greedy_start_index Optional integer. First seed feature. If NULL, chosen by \code{seeding}.
+#' @param greedy_start_index2 Optional integer. Second seed feature. If NULL, chosen by \code{seeding} rule above.
+#' @param seeding Seeding strategy when \code{greedy_start_index} is NULL.
+#'   \describe{
+#'     \item{\code{"variance"}}{Use the maximum-variance feature as the first seed (default).}
+#'     \item{\code{"correlation"}}{Use correlation with an ordering vector to choose seeds.}
+#'   }
+#' @param seed_ordering_vec Optional numeric vector of length \code{n}. Only used when
+#'   \code{seeding="correlation"} and \code{greedy_start_index} is NULL.
+#'   If NULL, defaults to the first PC score of \code{X}.
+#' @param seed_pc_scale Logical; only used when \code{seed_ordering_vec} is NULL and
+#'   \code{seeding="correlation"}. Passed as \code{scale.} to \code{prcomp}.
+#' @param seed_cor_abs Logical; if TRUE (default) seed using absolute correlations.
+#'   If FALSE, use signed correlations (max/min correlation).
 #' @param score_mode One of \code{"ml"} or \code{"none"}.
 #' @param rw_q Integer \eqn{\ge 0}. Rank deficiency along K (RW order).
 #' @param relative_lambda Logical; whether relative-lambda scaling is used.
@@ -788,6 +817,10 @@ forward_two_ordering_partition_csmooth <- function(
     K = 30,
     greedy_start_index = NULL,
     greedy_start_index2 = NULL,
+    seeding = c("variance", "correlation"),
+    seed_ordering_vec = NULL,
+    seed_pc_scale = TRUE,
+    seed_cor_abs = TRUE,
     score_mode = c("ml","none"),
     rw_q = 2,
     relative_lambda = TRUE,
@@ -800,12 +833,14 @@ forward_two_ordering_partition_csmooth <- function(
 ) {
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
-  score_mode <- match.arg(score_mode)
-  discretization <- match.arg(discretization)
-
-  v <- as.integer(verbose)
   X <- as.matrix(X)
   n <- nrow(X); d <- ncol(X)
+
+  score_mode <- match.arg(score_mode)
+  discretization <- match.arg(discretization)
+  seeding <- match.arg(seeding)
+
+  v <- as.integer(verbose)
 
   rw_q <- as.integer(rw_q)
   if (rw_q < 0L) stop("rw_q must be >= 0.")
@@ -813,6 +848,7 @@ forward_two_ordering_partition_csmooth <- function(
   Q1 <- make_random_walk_precision(K = K, d = 1, lambda = 1, q = rw_q, ridge = 0)
   Q2 <- make_random_walk_precision(K = K, d = 1, lambda = 1, q = rw_q, ridge = 0)
 
+  # --- helper: seed 1D fit from a single feature ---
   seed_fit_1d <- function(xj, Q_K) {
     ord <- rank(xj, ties.method = "first")
 
@@ -854,8 +890,12 @@ forward_two_ordering_partition_csmooth <- function(
         relative_lambda = relative_lambda
       )
       fit <- do_csmoothEM(
-        fit, data = fit$data, iter = as.integer(greedy_em_max_iter),
-        adaptive = fit$control$adaptive, record = TRUE, verbose = FALSE
+        fit,
+        data = fit$data,
+        iter = as.integer(greedy_em_max_iter),
+        adaptive = fit$control$adaptive,
+        record = TRUE,
+        verbose = FALSE
       )
       Gamma <- fit$gamma
       params <- fit$params
@@ -868,14 +908,51 @@ forward_two_ordering_partition_csmooth <- function(
     list(Gamma = Gamma, params = params)
   }
 
-  # ---- Seeds ----
-  j1 <- if (is.null(greedy_start_index)) which.max(apply(X, 2, var)) else as.integer(greedy_start_index)
-  if (length(j1) != 1L || is.na(j1) || j1 < 1L || j1 > d) stop("greedy_start_index out of range.")
+  # --- correlation helper ---
+  .pick_seed_by_correlation <- function(X, u, abs_cor = TRUE) {
+    u <- as.numeric(u)
+    if (length(u) != nrow(X)) stop("seed_ordering_vec must have length n.")
+    cors <- vapply(seq_len(ncol(X)), function(j) {
+      cj <- suppressWarnings(stats::cor(X[, j], u))
+      if (!is.finite(cj)) cj <- NA_real_
+      cj
+    }, numeric(1))
+    if (isTRUE(abs_cor)) cors <- abs(cors)
+    cors
+  }
 
+  # ============================================================
+  # Step 1: choose j1 (seed for ordering 1)
+  # ============================================================
+  u <- NULL
+  use_correlation_seeding <- (seeding == "correlation" && is.null(greedy_start_index))
+
+  if (!is.null(greedy_start_index)) {
+    j1 <- as.integer(greedy_start_index)
+  } else if (seeding == "variance") {
+    j1 <- which.max(apply(X, 2, stats::var))
+  } else {
+    # correlation-based seeding
+    u <- if (is.null(seed_ordering_vec)) {
+      stats::prcomp(X, center = TRUE, scale. = isTRUE(seed_pc_scale))$x[, 1]
+    } else {
+      as.numeric(seed_ordering_vec)
+    }
+    cors <- .pick_seed_by_correlation(X, u, abs_cor = isTRUE(seed_cor_abs))
+    cors[!is.finite(cors)] <- -Inf
+    j1 <- which.max(cors)
+  }
+
+  if (length(j1) != 1L || is.na(j1) || j1 < 1L || j1 > d) stop("j1 out of range.")
+
+  # fit ordering 1 seed (to get Gamma1)
   seed1 <- seed_fit_1d(X[, j1], Q1)
   Gamma1 <- seed1$Gamma
   params1 <- seed1$params
 
+  # ============================================================
+  # Step 2: choose j2 (seed for ordering 2)
+  # ============================================================
   if (!is.null(greedy_start_index2) && as.integer(greedy_start_index2) == j1) {
     warning("greedy_start_index2 equals greedy_start_index; selecting j2 automatically.")
     greedy_start_index2 <- NULL
@@ -883,8 +960,19 @@ forward_two_ordering_partition_csmooth <- function(
 
   if (!is.null(greedy_start_index2)) {
     j2 <- as.integer(greedy_start_index2)
-    if (length(j2) != 1L || is.na(j2) || j2 < 1L || j2 > d) stop("greedy_start_index2 out of range.")
+    if (length(j2) != 1L || is.na(j2) || j2 < 1L || j2 > d) stop("j2 out of range.")
+  } else if (use_correlation_seeding) {
+    # correlation-based j2: least correlated with the SAME u
+    if (is.null(u)) {
+      # should not happen, but keep safe
+      u <- stats::prcomp(X, center = TRUE, scale. = isTRUE(seed_pc_scale))$x[, 1]
+    }
+    cors2 <- .pick_seed_by_correlation(X, u, abs_cor = isTRUE(seed_cor_abs))
+    cors2[!is.finite(cors2)] <- Inf
+    cors2[j1] <- Inf
+    j2 <- which.min(cors2)
   } else {
+    # default: choose worst under Gamma1
     cand <- setdiff(seq_len(d), j1)
     scores_under_1 <- vapply(cand, function(j) {
       score_one_coord_csmooth(
@@ -897,12 +985,19 @@ forward_two_ordering_partition_csmooth <- function(
     j2 <- cand[which.min(scores_under_1)]
   }
 
+  if (length(j2) != 1L || is.na(j2) || j2 < 1L || j2 > d) stop("j2 out of range.")
+  if (j2 == j1) stop("j2 equals j1; seeding failed to pick a distinct second seed.")
+
+  # fit ordering 2 seed (to get Gamma2)
   seed2 <- seed_fit_1d(X[, j2], Q2)
   Gamma2 <- seed2$Gamma
   params2 <- seed2$params
 
   if (v >= 1) cat(sprintf("[Greedy-csmooth] seeds: j1=%d, j2=%d\n", j1, j2))
 
+  # ============================================================
+  # Greedy max-gap growth
+  # ============================================================
   J1 <- c(j1); J2 <- c(j2)
   remaining <- setdiff(seq_len(d), c(j1, j2))
 
@@ -957,24 +1052,24 @@ forward_two_ordering_partition_csmooth <- function(
       Nk <- pmax(colSums(Gamma1), 1e-8); params1$pi <- Nk / sum(Nk)
 
       if (isTRUE(greedy_em_refine) && as.integer(greedy_em_max_iter) > 0L) {
-        fit1 <- as_csmooth_em(
+        fit1_tmp <- as_csmooth_em(
           params = params1, gamma = Gamma1, data = X1,
           Q_K = Q1, lambda_vec = rep(1, ncol(X1)), rw_q = rw_q,
           ridge = 0, modelName = "homoskedastic",
           relative_lambda = relative_lambda,
           nugget = 0, eigen_tol = NULL, meta = NULL
         )
-        fit1$control <- list(
+        fit1_tmp$control <- list(
           adaptive = if (score_mode == "ml") "ml" else "none",
           lambda_min = lambda_min, lambda_max = lambda_max,
           modelName = "homoskedastic", relative_lambda = relative_lambda
         )
-        fit1 <- do_csmoothEM(
-          fit1, data = X1, iter = as.integer(greedy_em_max_iter),
-          adaptive = fit1$control$adaptive, record = TRUE, verbose = FALSE
+        fit1_tmp <- do_csmoothEM(
+          fit1_tmp, data = X1, iter = as.integer(greedy_em_max_iter),
+          adaptive = fit1_tmp$control$adaptive, record = TRUE, verbose = FALSE
         )
-        Gamma1 <- fit1$gamma
-        params1 <- fit1$params
+        Gamma1 <- fit1_tmp$gamma
+        params1 <- fit1_tmp$params
         Nk <- pmax(colSums(Gamma1), 1e-8); params1$pi <- Nk / sum(Nk)
       }
 
@@ -990,24 +1085,24 @@ forward_two_ordering_partition_csmooth <- function(
       Nk <- pmax(colSums(Gamma2), 1e-8); params2$pi <- Nk / sum(Nk)
 
       if (isTRUE(greedy_em_refine) && as.integer(greedy_em_max_iter) > 0L) {
-        fit2 <- as_csmooth_em(
+        fit2_tmp <- as_csmooth_em(
           params = params2, gamma = Gamma2, data = X2,
           Q_K = Q2, lambda_vec = rep(1, ncol(X2)), rw_q = rw_q,
           ridge = 0, modelName = "homoskedastic",
           relative_lambda = relative_lambda,
           nugget = 0, eigen_tol = NULL, meta = NULL
         )
-        fit2$control <- list(
+        fit2_tmp$control <- list(
           adaptive = if (score_mode == "ml") "ml" else "none",
           lambda_min = lambda_min, lambda_max = lambda_max,
           modelName = "homoskedastic", relative_lambda = relative_lambda
         )
-        fit2 <- do_csmoothEM(
-          fit2, data = X2, iter = as.integer(greedy_em_max_iter),
-          adaptive = fit2$control$adaptive, record = TRUE, verbose = FALSE
+        fit2_tmp <- do_csmoothEM(
+          fit2_tmp, data = X2, iter = as.integer(greedy_em_max_iter),
+          adaptive = fit2_tmp$control$adaptive, record = TRUE, verbose = FALSE
         )
-        Gamma2 <- fit2$gamma
-        params2 <- fit2$params
+        Gamma2 <- fit2_tmp$gamma
+        params2 <- fit2_tmp$params
         Nk <- pmax(colSums(Gamma2), 1e-8); params2$pi <- Nk / sum(Nk)
       }
 

@@ -185,6 +185,7 @@ res_fwd <- forward_two_ordering_partition_csmooth(
   score_mode = "ml",
   greedy_em_refine = TRUE,
   greedy_em_max_iter = 10,  
+  seeding="variance",
   verbose = 1
 )
 ```
