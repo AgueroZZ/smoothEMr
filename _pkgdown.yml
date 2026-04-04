@@ -1,22 +1,19 @@
+url: https://aguerozz.github.io/MPCurver/
+
 template:
   bootstrap: 5
 
 articles:
-  - title: Recommended workflows
-    navbar: Recommended
+  - title: Getting started
+    navbar: Getting started
     contents:
-      - elife_fitness_analysis
-      - cavi_math_details
-      - cavi_vs_csmooth_math
-      - cavi_model_matched_sanity_check
-      - cavi_initialization_diagnostics
       - mpcurve_intro
       - partition
-  - title: Legacy and benchmark workflows
+  - title: Case studies
+    navbar: Case studies
+    contents:
+      - fitness
+  - title: Legacy
     navbar: Legacy
     contents:
-      - csmooth_em_intro
-      - partition_csmooth
-      - soft_partition_cavi_vs_csmooth
-      - cavi_vs_csmooth_same_settings
-      - dual_ordering_method_comparison
+      - Intro

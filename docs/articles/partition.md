@@ -1,0 +1,514 @@
+# Feature Partitioning with MPCurver
+
+``` r
+library(MPCurver)
+set.seed(42)
+```
+
+## The feature-partition problem
+
+The single-ordering model from
+[`vignette("mpcurve_intro")`](https://aguerozz.github.io/MPCurver/articles/mpcurve_intro.md)
+assumes that all features share one latent sample ordering. In many
+applications, however, different groups of features may reflect
+**different** underlying processes, each with its own ordering.
+
+The partition model with $`M`$ orderings introduces:
+
+- a feature-level assignment $`z_j \in \{1,\dots,M\}`$,
+- $`M`$ independent latent orderings $`t_i^{(m)} \in \{1,\dots,K\}`$,
+  $`m = 1,\dots,M`$,
+- and $`M`$ sets of smooth trajectories $`u_j^{(m)} \in \mathbb{R}^K`$.
+
+The observation model becomes:
+``` math
+
+x_{ij} \mid z_j = m,\; t_i^{(m)} = k
+\;\sim\;
+N\!\bigl(u_{jk}^{(m)},\; \sigma_j^2\bigr).
+```
+
+Each trajectory retains the GMRF prior:
+``` math
+
+u_j^{(m)} \sim N\!\bigl(0,\; (\lambda_j^{(m)} Q_K)^{-1}\bigr).
+```
+
+The goal is to recover both the **partition** (which features belong to
+which ordering) and the **orderings** themselves.
+
+This generalises the `intrinsic_dim` concept from
+[`vignette("mpcurve_intro")`](https://aguerozz.github.io/MPCurver/articles/mpcurve_intro.md):
+a model with $`M`$ orderings has **intrinsic dimension $`M`$**. The
+standard single-ordering fit is the special case $`M = 1`$.
+
+## The soft partition algorithm
+
+`MPCurver` uses a soft partition approach: rather than assigning each
+feature to exactly one ordering, it maintains probabilistic weights
+$`w_{jm} \in [0,1]`$ (with $`\sum_m w_{jm} = 1`$) describing how much
+feature $`j`$ belongs to ordering $`m`$.
+
+### Per-feature likelihood scores
+
+For each feature $`j`$ and ordering $`m`$, the assignment update uses
+the **expected log-likelihood score**
+``` math
+
+\ell_{jm}^{\mathrm{like}}
+=
+\mathbb{E}_{q(C^{(m)}) q(u_j^{(m)})}
+\big[
+\log p(x_{\cdot j} \mid z_j = m,\; C^{(m)},\; u_j^{(m)})
+\big],
+```
+which expands to
+``` math
+
+\ell_{jm}^{\mathrm{like}}
+=
+\sum_{i,k} r_{ik}^{(m)}
+  \left[
+    -\tfrac{1}{2}\log(2\pi\sigma_j^2)
+    - \frac{(x_{ij} - m_{jk}^{(m)})^2 + S_{j,kk}^{(m)}}{2\,\sigma_j^2}
+  \right].
+```
+
+### Soft weights via annealed softmax
+
+Under the default fixed-uniform assignment prior, the feature weights
+are updated via a softmax at temperature $`T`$:
+``` math
+
+w_{jm} \;\propto\; \exp\!\bigl(\ell_{jm}^{\mathrm{like}} / T\bigr).
+```
+
+If `assignment_prior = "dirichlet"`, the score is augmented by the
+current variational expectation of the ordering-usage weights: \$\$
+w\_{jm} \\\propto\\ \exp\\\Bigl( \bigl\[\ell\_{jm}^{\mathrm{like}} +
+\mathbb{E}\_q \log \omega_m\bigr\] / T \Bigr), \$\$ with
+``` math
+
+q(\omega)
+=
+\operatorname{Dirichlet}\!\left(
+\alpha + \sum_j w_{j1},\dots,\alpha + \sum_j w_{jM}
+\right).
+```
+
+Each CAVI ordering update uses feature-weighted responsibilities: the
+contribution of feature $`j`$ to ordering $`m`$ is scaled by $`w_{jm}`$.
+
+The **annealing schedule** starts at $`T = T_\text{start}`$ and
+decreases geometrically to $`T = T_\text{end}`$. At high temperature,
+all features contribute more evenly across orderings; as $`T \to 1`$,
+the weights sharpen toward hard assignments.
+
+### Full variational objective
+
+Under the default fixed-uniform prior, the partition objective is
+``` math
+
+\mathcal{L}_\text{partition}
+= - d \log M
+  + T\,H(w)
+  + \sum_{m=1}^M
+    \Big[
+      \mathbb{E}_q \log p(C^{(m)} \mid \pi^{(m)})
+      + H(q(C^{(m)}))
+    \Big]
+  + \sum_j \sum_{m=1}^M
+    \Big[
+      w_{jm}\,\ell_{jm}^{\mathrm{like}}
+      - \mathrm{KL}\!\bigl(q(u_j^{(m)}) \,\|\, p(u_j^{(m)})\bigr)
+    \Big].
+```
+
+With `assignment_prior = "dirichlet"`, the fixed term
+`-d log M + T H(w)` is replaced by the full variational assignment block
+``` math
+
+\sum_{j,m} w_{jm}\,\mathbb{E}_q \log \omega_m
++ T\,H(w)
+- \mathrm{KL}\!\bigl(q(\omega) \,\|\, p(\omega)\bigr).
+```
+
+In both cases, if `lambda_sd_prior_rate > 0`, the recorded objective
+also includes the induced prior contribution
+``` math
+
+\sum_{j,m} \log p(\lambda_j^{(m)}),
+\qquad
+\log p(\lambda) =
+\log(\rho/2) - \tfrac{3}{2}\log \lambda - \rho \lambda^{-1/2},
+```
+so the stored `objective_history` remains aligned with the actual
+penalized updates.
+
+## Fitting via `fit_mpcurve()`
+
+The main entry point for partition models is
+[`fit_mpcurve()`](https://aguerozz.github.io/MPCurver/reference/fit_mpcurve.md)
+with `intrinsic_dim = M`. This returns an `mpcurve` object with the full
+S3 interface, just like a single-ordering fit.
+
+### Simulated example
+
+We simulate a dataset where 8 features follow ordering A and 8 follow
+ordering B:
+
+``` r
+sim <- simulate_dual_trajectory(
+  n = 500,
+  d1 = 10,
+  d2 = 10,
+  d_noise = 0,
+  sigma = 0.05,
+  trajectory_family = c("quadratic", "monotone"),
+  seed = 1
+)
+
+X <- sim$X
+truth <- sim$true_assign
+
+cat("Data dimensions:", nrow(X), "x", ncol(X), "\n")
+#> Data dimensions: 500 x 20
+cat("True partition:\n")
+#> True partition:
+print(table(truth))
+#> truth
+#>  A  B 
+#> 10 10
+```
+
+### Fitting with `intrinsic_dim = 2`
+
+``` r
+fit_partition <- fit_mpcurve(
+  X,
+  intrinsic_dim = 2,
+  method = "PCA",
+  K = 50,
+  rw_q = 2,
+  verbose = FALSE
+)
+```
+
+The result is an `mpcurve` object with `intrinsic_dim = 2`, containing:
+
+- `$fits`: list of 2 single-ordering `mpcurve` fits
+- `$partition$pi_weights`: $`d \times 2`$ matrix of soft feature weights
+- `$partition$assign`: hard assignment for each feature (`"A"` or `"B"`)
+- `$objective_history`: partition objective trace
+
+``` r
+plot(fit_partition, plot_type = "elbo")
+```
+
+![Visualising the fitted \`mpcurve\`
+object.](partition_files/figure-html/visualize-mpcurve-1.png)
+
+Visualising the fitted `mpcurve` object.
+
+``` r
+plot(fit_partition, dims = 4)
+```
+
+![Visualising the fitted \`mpcurve\`
+object.](partition_files/figure-html/visualize-mpcurve-2.png)
+
+Visualising the fitted `mpcurve` object.
+
+### Checking the objective
+
+For a fixed `intrinsic_dim = M`, the recorded partition objective is the
+main trace to inspect. Away from freeze events it should behave
+monotonically under the phase-2 updates. If an iteration freezes one or
+more weak orderings, the objective for that step is still recorded, but
+that step is skipped for convergence accounting and can show a small
+decrease.
+
+``` r
+has_drop <- any(diff(fit_partition$objective_history) < -1e-8)
+cat("Any recorded decreases:", has_drop, "\n")
+#> Any recorded decreases: FALSE
+print(fit_partition$convergence_info)
+#> $criterion
+#> [1] "phase-2 rel_delta < 1.0e-05 for 3 consecutive nonnegative steps after at least 3 phase-2 iterations"
+#> 
+#> $tol_outer
+#> [1] 1e-05
+#> 
+#> $phase2_iters
+#> [1] 67
+#> 
+#> $last_delta
+#> [1] 0.1126098
+#> 
+#> $last_rel_delta
+#> [1] 9.307088e-06
+#> 
+#> $consecutive_small_steps
+#> [1] 3
+#> 
+#> $min_phase2_iter
+#> [1] 3
+#> 
+#> $consecutive_required
+#> [1] 3
+#> 
+#> $converged
+#> [1] TRUE
+#> 
+#> $reason
+#> [1] "Phase-2 rel_delta stayed below 1.0e-05 for 3 consecutive nonnegative steps."
+```
+
+``` r
+plot(fit_partition$objective_history, type = "b", pch = 19, cex = 0.7,
+     xlab = "Iteration",
+     ylab = "Variational objective",
+     main = "Soft partition objective")
+```
+
+![Variational objective over
+iterations.](partition_files/figure-html/plot-soft-obj-1.png)
+
+Variational objective over iterations.
+
+The absolute value of `$objective_history` is most useful when comparing
+fits under the **same prior settings**. Its interpretation now depends
+on `drop_unused_ordering`:
+
+- If `drop_unused_ordering = FALSE`, the stored objective is the
+  fixed-requested-`M` comparison objective. Frozen orderings keep their
+  preserved feature-assignment weights and cell-ordering block, while
+  their trajectory `U` contribution is neutralized to zero. This is the
+  mode to use when comparing fits across requested values of
+  `intrinsic_dim`.
+- If `drop_unused_ordering = TRUE`, the stored objective is the
+  post-drop fitting objective of the active model. It is useful for
+  monitoring that fit, but should not be compared across requested
+  values of `intrinsic_dim`.
+
+Even in comparison mode, `$objective_history` is still a variational
+objective, not a calibrated marginal likelihood.
+
+### Visualising both orderings
+
+[`plot()`](https://rdrr.io/r/graphics/plot.default.html) shows one panel
+per ordering, each coloured by that ordering’s pseudotime. The title
+annotates the mean feature weight for the plotted dimensions:
+
+``` r
+plot(fit_partition, dims = 1)
+```
+
+![Both orderings side by
+side.](partition_files/figure-html/plot-partition-1.png)
+
+Both orderings side by side.
+
+### Partition accuracy
+
+``` r
+soft_acc <- evaluate_partition(
+  list(assign = fit_partition$partition$assign), truth
+)$accuracy
+cat("Soft partition accuracy:", round(soft_acc, 4), "\n")
+#> Soft partition accuracy: 1
+```
+
+Compute the correlation between the inferred pseudotimes and the true
+orderings:
+
+``` r
+cor1 <- cor(fit_partition$fits[[1]]$locations$mean$pseudotime , sim$t2)
+cor2 <- cor(fit_partition$fits[[2]]$locations$mean$pseudotime, sim$t1)
+cat("Correlation with true orderings:\n")
+#> Correlation with true orderings:
+cat("Ordering 1:", round(cor1, 4), "\n")
+#> Ordering 1: 0.0455
+cat("Ordering 2:", round(cor2, 4), "\n")
+#> Ordering 2: -0.0043
+```
+
+### Continuing a fit
+
+Use
+[`do_mpcurve()`](https://aguerozz.github.io/MPCurver/reference/do_mpcurve.md)
+to run additional convergence iterations at $`T = T_\text{end}`$:
+
+``` r
+fit_partition <- do_mpcurve(fit_partition, iter = 10)
+```
+
+This extends `$objective_history` in place, just like for
+single-ordering fits.
+
+## Initialisation and methods
+
+By default, partition fits now use `partition_init = "similarity"`,
+which first clusters features and then initializes one ordering per
+feature block.
+
+If you explicitly choose `partition_init = "ordering_methods"`, ordering
+1 uses the `method` argument (same as
+[`fit_mpcurve()`](https://aguerozz.github.io/MPCurver/reference/fit_mpcurve.md)
+for `intrinsic_dim = 1`), and orderings 2, 3, … use successive PCA
+components (PC2, PC3, …) to ensure diverse initialisation rather than
+duplicating the first axis.
+
+You can specify independent methods for each ordering:
+
+``` r
+# Ordering 1: fiedler, ordering 2: PCA (PC1)
+fit2 <- fit_mpcurve(X, intrinsic_dim = 2,
+                    method = c("fiedler", "PCA"),
+                    K = 16)
+```
+
+For $`M > 2`$, extend the vector accordingly:
+
+``` r
+# Three orderings with different initialisations
+fit3 <- fit_mpcurve(X, intrinsic_dim = 3,
+                    method = c("fiedler", "PCA", "PCA"),
+                    K = 16)
+```
+
+## Greedy dimension selection
+
+Dimension selection is now unified under the soft-CAVI framework through
+`fit_mpcurve(greedy = ...)`.
+
+- `greedy = "forward"` treats `intrinsic_dim` as an upper bound and
+  compares `M` versus `M + 1` sequentially starting from `M = 1`.
+- `greedy = "backward"` first fits the upper bound, then removes one
+  active ordering at a time and compares `M` versus `M - 1`.
+
+Both greedy modes always compare models using the fixed-requested-`M`
+comparison objective, so they internally run with
+`drop_unused_ordering = FALSE` even if you ask for a compact final
+returned view.
+
+``` r
+fit_forward <- fit_mpcurve(
+  X,
+  intrinsic_dim = 4,
+  greedy = "forward",
+  K = 16,
+  drop_unused_ordering = FALSE,
+  verbose = FALSE
+)
+
+fit_backward <- fit_mpcurve(
+  X,
+  intrinsic_dim = 4,
+  greedy = "backward",
+  K = 16,
+  drop_unused_ordering = TRUE,
+  verbose = FALSE
+)
+```
+
+``` r
+summary_tbl <- data.frame(
+  fit = c("soft (fixed M=2)", "greedy forward", "greedy backward"),
+  displayed_dim = c(
+    fit_partition$intrinsic_dim,
+    fit_forward$intrinsic_dim,
+    fit_backward$intrinsic_dim
+  ),
+  selected_dim = c(
+    fit_partition$requested_intrinsic_dim,
+    fit_forward$greedy_selection$selected_intrinsic_dim,
+    fit_backward$greedy_selection$selected_intrinsic_dim
+  )
+)
+print(summary_tbl, row.names = FALSE)
+#>               fit displayed_dim selected_dim
+#>  soft (fixed M=2)             2            2
+#>    greedy forward             2            2
+#>   greedy backward             2            2
+```
+
+``` r
+assignment_heatmap(
+  truth    = truth,
+  soft     = fit_partition$partition$assign,
+  forward  = fit_forward$partition$assign,
+  backward = fit_backward$partition$assign,
+  main = "Feature partition comparison"
+)
+```
+
+![True vs inferred feature
+partitions.](partition_files/figure-html/plot-assignments-1.png)
+
+True vs inferred feature partitions.
+
+## Key parameters
+
+### `fit_mpcurve()` with `intrinsic_dim >= 2`
+
+| Parameter | Default | Description |
+|----|----|----|
+| `intrinsic_dim` | `1` | Number of orderings $`M`$; in greedy modes this is an upper bound |
+| `greedy` | `"none"` | Optional dimension-selection mode: `"forward"` or `"backward"` |
+| `method` | `"PCA"` | Length-1 or length-$`M`$ vector of initialisation methods per ordering |
+| `K` | auto | Number of grid points per ordering |
+| `n_outer` | `25` | Annealing iterations ($`T`$ decreases geometrically) |
+| `max_converge_iter` | `100` | Post-annealing iterations at $`T = T_\text{end}`$ |
+| `tol_outer` | `1e-5` | Phase-2 relative objective tolerance; requires 3 consecutive small nonnegative steps |
+| `T_start` / `T_end` | `5` / `1` | Temperature schedule endpoints |
+| `inner_iter` | `1` | Weighted CAVI sweeps per outer step |
+
+## Tips
+
+- **Use `fit_mpcurve(intrinsic_dim = M)` as the main entry point.** It
+  returns a unified `mpcurve` object and handles all initialisation
+  automatically.
+- **Use `greedy = "forward"` or `"backward"` when `intrinsic_dim` is
+  only an upper bound.** Greedy search always compares models with the
+  fixed-`M` objective.
+- **Start with `intrinsic_dim = 2`.** If the partition is unclear,
+  consider $`M = 3`$ to allow a third ordering to capture residual
+  structure.
+- **Specify independent init methods.** `method = c("fiedler", "PCA")`
+  uses a spectral ordering for the first axis and PC1 for the second
+  explicit PCA-based ordering. If you want later PCA axes as explicit
+  starts, pass `pca_components` directly.
+- **Non-monotone features are harder.** When many features have
+  non-monotone relationships with the latent ordering, results become
+  more initialisation-sensitive.
+- **Partitioning is easier than trajectory recovery.** Even when the
+  inferred orderings are imperfect, the feature partition can still be
+  accurate.
+- **Check the objective trace.** Within one fixed `intrinsic_dim`,
+  sustained decreases are a red flag; a one-step drop on a
+  freeze-affected iteration is possible and is excluded from convergence
+  accounting.
+- **Compare across `intrinsic_dim` only with
+  `drop_unused_ordering = FALSE`.** In that mode the stored objective
+  keeps the fixed requested-`M` comparison semantics. With
+  `drop_unused_ordering = TRUE`, it becomes a post-drop fit objective
+  and should not be compared across requested dimensions.
+
+## Summary
+
+- `fit_mpcurve(X, intrinsic_dim = M)` is the primary entry point for
+  partition models, returning an `mpcurve` with `intrinsic_dim = M`.
+- `fit_mpcurve(..., greedy = "forward")` and
+  `fit_mpcurve(..., greedy = "backward")` provide the unified dimension
+  selection workflow going forward.
+- [`print()`](https://rdrr.io/r/base/print.html),
+  [`summary()`](https://rdrr.io/r/base/summary.html), and
+  [`plot()`](https://rdrr.io/r/graphics/plot.default.html) all work out
+  of the box: [`plot()`](https://rdrr.io/r/graphics/plot.default.html)
+  shows $`M`$ panels, one per ordering, coloured by pseudotime.
+- [`do_mpcurve()`](https://aguerozz.github.io/MPCurver/reference/do_mpcurve.md)
+  continues fitting at $`T = T_\text{end}`$ and extends the objective
+  history, identical to the single-ordering interface.
+- All methods build on the same CAVI trajectory model from
+  [`vignette("mpcurve_intro")`](https://aguerozz.github.io/MPCurver/articles/mpcurve_intro.md).
