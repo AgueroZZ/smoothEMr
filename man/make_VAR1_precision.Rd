@@ -21,6 +21,7 @@ make_VAR1_precision(K, d, A = NULL, Q = NULL, P0 = NULL)
 (dK) x (dK) precision matrix (dense).
 }
 \description{
-Model: U_1 ~ N(0, P0^{-1}), and for k>=2: U_k | U_{k-1} ~ N(A U_{k-1}, Q)
-Returns the joint precision matrix for vec(U_1,...,U_K).
+Model: \eqn{U_1 \sim N(0, P0^{-1})}, and for \eqn{k >= 2},
+\eqn{U_k \mid U_{k-1} \sim N(A U_{k-1}, Q)}.
+Returns the joint precision matrix for \eqn{\mathrm{vec}(U_1, \dots, U_K)}.
 }

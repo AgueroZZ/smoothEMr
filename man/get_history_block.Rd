@@ -6,6 +6,13 @@
 \usage{
 get_history_block(res, h, normalize_gamma = TRUE)
 }
+\arguments{
+\item{res}{Result returned by \code{progressive_smoothEM()}.}
+
+\item{h}{History index to extract.}
+
+\item{normalize_gamma}{Logical; renormalize rows of the returned gamma matrix?}
+}
 \description{
 Extract a (u, gamma) block for a given progressive history index
 }

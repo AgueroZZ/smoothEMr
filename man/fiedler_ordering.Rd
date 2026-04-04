@@ -16,7 +16,9 @@ fiedler_ordering(
 \arguments{
 \item{X}{Numeric matrix \eqn{n \times D} (rows are observations).}
 
-\item{k}{Number of nearest neighbors.}
+\item{k}{Number of nearest neighbors. If left at the default and the
+resulting kNN graph is disconnected, the function automatically increases
+\code{k} until the graph becomes connected.}
 
 \item{weight}{Similarity type: \code{"rbf"}, \code{"inv"}, or \code{"binary"}.}
 
@@ -30,7 +32,8 @@ with \code{NA} for nodes excluded by \code{keep="giant"}.
 If \code{FALSE}, return \code{t} only for the kept nodes.}
 }
 \value{
-A list with \code{t}, \code{keep_idx}, and \code{n_components}.
+A list with \code{t}, \code{keep_idx}, \code{n_components}, and
+  \code{k_used}.
 }
 \description{
 Builds a kNN graph on rows of \code{X}, computes a 1D ordering coordinate using

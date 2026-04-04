@@ -10,10 +10,10 @@ optimize_initial_csmoothEM(
   num_iter = 5,
   num_cores = 2,
   K = NULL,
-  adaptive = "prior",
+  adaptive = "ml",
   lambda_min = 1e-08,
   lambda_max = 1e+08,
-  sigma_update = c("mstep", "ml"),
+  sigma_update = c("ml", "mstep"),
   sigma_min = 1e-10,
   sigma_max = 1e+10,
   plot = FALSE,
@@ -37,13 +37,14 @@ optimize_initial_csmoothEM(
 the default logic in \code{initialize_csmoothEM} is used.}
 
 \item{adaptive}{Character. One of \code{"none"}, \code{"prior"}, \code{"ml"}.
-Logical values are accepted for backward compatibility: \code{TRUE} is treated as
-\code{"prior"} and \code{FALSE} as \code{"none"}.}
+\code{"prior"} is obsolete and retained only for backward compatibility.
+Logical values are accepted for backward compatibility: \code{TRUE} is interpreted as
+\code{"ml"} and \code{FALSE} as \code{"none"}.}
 
 \item{lambda_min, lambda_max}{Positive bounds for \code{lambda_vec} when \code{adaptive!="none"}.}
 
 \item{sigma_update}{Character. Only used when \code{adaptive="ml"} (passed through).
-Either \code{"mstep"} or \code{"ml"}.}
+Defaults to \code{"ml"}; legacy \code{"mstep"} is retained only for backward compatibility.}
 
 \item{sigma_min, sigma_max}{Positive bounds for \code{sigma2} when \code{adaptive="ml"} and
 \code{sigma_update="ml"}.}

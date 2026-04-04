@@ -23,7 +23,7 @@ partition_features_twofits(
 }
 \value{
 A list with
-  - assign: length-d character vector in {"A","B"}
+  - assign: length-d character vector taking values \code{"A"} or \code{"B"}
   - score_diff: length-d vector (CA - CB)
   - CA, CB: length-d vectors of per-feature scores
 }

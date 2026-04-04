@@ -69,7 +69,9 @@ as_csmooth_em <- function(
   if (length(params$mu) != K) stop("params$mu must be a list of length K.")
   d <- length(params$mu[[1]])
 
-  if (!is.matrix(Q_K) || nrow(Q_K) != K || ncol(Q_K) != K) stop("Q_K must be a K-by-K matrix.")
+  if (!(is.matrix(Q_K) || inherits(Q_K, "Matrix")) || nrow(Q_K) != K || ncol(Q_K) != K)
+    stop("Q_K must be a K-by-K matrix or sparse Matrix.")
+  Q_K <- as.matrix(Q_K)  # K x K is small; dense is faster for chol/solve in MSTEP
   lambda_vec <- as.numeric(lambda_vec)
   if (length(lambda_vec) != d) stop("lambda_vec must have length d (ncol(data)).")
   if (any(!is.finite(lambda_vec)) || any(lambda_vec < 0)) stop("lambda_vec must be finite and >= 0.")
@@ -125,6 +127,104 @@ as_csmooth_em <- function(
 
 
 # ============================================================
+# csmooth_em adaptive-mode helpers
+# ============================================================
+
+.warn_prior_adaptive_obsolete <- local({
+  warned <- FALSE
+  function(caller = NULL) {
+    if (isTRUE(warned)) return(invisible(NULL))
+    warned <<- TRUE
+    prefix <- if (is.null(caller) || !nzchar(caller)) "" else paste0(caller, ": ")
+    warning(
+      prefix,
+      "adaptive = \"prior\" is obsolete and kept only for backward compatibility. ",
+      "Use adaptive = \"ml\" for collapsed-ML updates or adaptive = \"none\" to keep lambda fixed.",
+      call. = FALSE
+    )
+    invisible(NULL)
+  }
+})
+
+.warn_logical_adaptive_true <- local({
+  warned <- FALSE
+  function(caller = NULL) {
+    if (isTRUE(warned)) return(invisible(NULL))
+    warned <<- TRUE
+    prefix <- if (is.null(caller) || !nzchar(caller)) "" else paste0(caller, ": ")
+    warning(
+      prefix,
+      "logical adaptive = TRUE is deprecated for csmooth_em and is now interpreted as adaptive = \"ml\". ",
+      "Use an explicit string to avoid ambiguity.",
+      call. = FALSE
+    )
+    invisible(NULL)
+  }
+})
+
+.warn_sigma_update_mstep_legacy <- local({
+  warned <- FALSE
+  function(caller = NULL) {
+    if (isTRUE(warned)) return(invisible(NULL))
+    warned <<- TRUE
+    prefix <- if (is.null(caller) || !nzchar(caller)) "" else paste0(caller, ": ")
+    warning(
+      prefix,
+      "sigma_update = \"mstep\" is deprecated for adaptive = \"ml\" and is kept only for backward compatibility. ",
+      "Use sigma_update = \"ml\" to jointly optimize sigma2 and lambda under the collapsed objective.",
+      call. = FALSE
+    )
+    invisible(NULL)
+  }
+})
+
+.normalize_csmooth_adaptive <- function(adaptive,
+                                        default = NULL,
+                                        none_as_null = FALSE,
+                                        caller = NULL) {
+  mode <- adaptive
+  if (is.null(mode)) mode <- default
+
+  if (is.logical(mode)) {
+    if (isTRUE(mode)) {
+      .warn_logical_adaptive_true(caller)
+      mode <- "ml"
+    } else {
+      mode <- "none"
+    }
+  }
+
+  if (is.null(mode)) {
+    return(if (isTRUE(none_as_null)) NULL else "none")
+  }
+
+  mode <- match.arg(mode, choices = c("none", "prior", "ml"))
+
+  if (identical(mode, "prior")) {
+    .warn_prior_adaptive_obsolete(caller)
+  }
+
+  if (isTRUE(none_as_null) && identical(mode, "none")) {
+    return(NULL)
+  }
+
+  mode
+}
+
+.normalize_sigma_update <- function(sigma_update,
+                                    default = "ml",
+                                    caller = NULL) {
+  mode <- sigma_update
+  if (is.null(mode)) mode <- default
+  mode <- match.arg(mode, choices = c("ml", "mstep"))
+  if (identical(mode, "mstep")) {
+    .warn_sigma_update_mstep_legacy(caller)
+  }
+  mode
+}
+
+
+# ============================================================
 # csmooth_em: E-step (diagonal covariances)
 # ============================================================
 
@@ -142,37 +242,51 @@ ESTEP_csmooth <- function(X, params, modelName) {
   d <- ncol(X)
   K <- length(params$pi)
 
-  Mu <- do.call(cbind, params$mu)  # d x K
-  pi_vec <- params$pi
-
-  log_gamma <- matrix(0, n, K)
+  Mu     <- do.call(cbind, params$mu)  # d x K
+  log_pi <- log(pmax(params$pi, .Machine$double.eps))
 
   if (modelName == "homoskedastic") {
-    sigma2 <- as.numeric(params$sigma2)
-    sigma2 <- pmax(sigma2, .Machine$double.eps)
-
-    # log det is shared across k: sum_j log sigma2_j
-    logdet <- sum(log(sigma2))
-    const  <- -0.5 * (d * log(2*pi) + logdet)
-
-    for (k in seq_len(K)) {
-      diff <- sweep(X, 2, Mu[, k], "-")
-      quad <- rowSums((diff^2) / matrix(sigma2, n, d, byrow = TRUE))
-      log_gamma[, k] <- log(pi_vec[k]) + const - 0.5 * quad
+    # Use cached invsig2/logdet if available (updated by cache_csmooth_params after each M-step)
+    if (!is.null(params$invsig2) && !is.null(params$logdet)) {
+      invsig2 <- params$invsig2
+      logdet  <- params$logdet
+    } else {
+      sigma2  <- pmax(as.numeric(params$sigma2), .Machine$double.eps)
+      invsig2 <- 1 / sigma2
+      logdet  <- sum(log(sigma2))
     }
+
+    # Vectorized quadratic form: quad[i,k] = sum_j (x_ij - mu_jk)^2 / sigma2_j
+    #   = sum_j x_ij^2/sig2_j  -  2 * sum_j x_ij*mu_jk/sig2_j  +  sum_j mu_jk^2/sig2_j
+    Mu_s  <- Mu * invsig2                  # d x K  (broadcast invsig2 over columns)
+    xs2   <- drop(X^2 %*% invsig2)        # n-vector
+    cross <- X %*% Mu_s                    # n x K
+    mu2   <- colSums(Mu * Mu_s)           # K-vector
+
+    quad      <- xs2 - 2 * cross + matrix(mu2, n, K, byrow = TRUE)
+    const     <- -0.5 * (d * log(2 * pi) + logdet)
+    log_gamma <- const - 0.5 * quad + matrix(log_pi, n, K, byrow = TRUE)
 
   } else {
-    sigma2_mat <- as.matrix(params$sigma2)  # d x K
-
-    for (k in seq_len(K)) {
-      sig2 <- pmax(sigma2_mat[, k], .Machine$double.eps)
-      logdet <- sum(log(sig2))
-      const  <- -0.5 * (d * log(2*pi) + logdet)
-
-      diff <- sweep(X, 2, Mu[, k], "-")
-      quad <- rowSums((diff^2) / matrix(sig2, n, d, byrow = TRUE))
-      log_gamma[, k] <- log(pi_vec[k]) + const - 0.5 * quad
+    # Use cached invsig2/logdet if available
+    if (!is.null(params$invsig2) && !is.null(params$logdet)) {
+      invsig2_mat <- params$invsig2   # d x K
+      logdet_vec  <- params$logdet    # K-vector
+    } else {
+      sigma2_mat  <- pmax(as.matrix(params$sigma2), .Machine$double.eps)  # d x K
+      invsig2_mat <- 1 / sigma2_mat
+      logdet_vec  <- colSums(log(sigma2_mat))
     }
+
+    # quad[i,k] = sum_j (x_ij - mu_jk)^2 / sigma2_jk
+    Mu_s  <- Mu * invsig2_mat             # d x K
+    xs2   <- X^2 %*% invsig2_mat          # n x K
+    cross <- X %*% Mu_s                   # n x K
+    mu2   <- colSums(Mu * Mu_s)           # K-vector
+
+    quad       <- xs2 - 2 * cross + matrix(mu2, n, K, byrow = TRUE)
+    const_vec  <- -0.5 * (d * log(2 * pi) + logdet_vec)
+    log_gamma  <- -0.5 * quad + matrix(const_vec + log_pi, n, K, byrow = TRUE)
   }
 
   lse <- matrixStats::rowLogSumExps(log_gamma)
@@ -402,23 +516,15 @@ MSTEP_csmooth <- function(X, Gamma, params, Q_K, lambda_vec,
 
   # ---- sigma2 update
   if (modelName == "homoskedastic") {
-    V <- numeric(d)
-    for (j in seq_len(d)) {
-      # V_j = sum_k [ GX2[j,k] - 2 mu_{j,k} GX[j,k] + mu_{j,k}^2 Nk[k] ]
-      term1 <- sum(GX2[j, ])
-      term2 <- 2 * sum(mu_mat[j, ] * GX[j, ])
-      term3 <- sum((mu_mat[j, ]^2) * Nk)
-      V[j] <- term1 - term2 + term3
-    }
+    # V_j = sum_k [ GX2[j,k] - 2 mu_{j,k} GX[j,k] + mu_{j,k}^2 Nk[k] ]
+    V <- rowSums(GX2) - 2 * rowSums(mu_mat * GX) + drop(mu_mat^2 %*% Nk)
 
     if (relative_lambda && !is.null(Q_K)) {
-      # add prior contribution U_j = lambda_j * mu_j' Q_K mu_j
-      U <- vapply(seq_len(d), function(j) {
-        lam <- lambda_vec[j]
-        if (!is.finite(lam) || lam <= 0) return(0)
-        mj <- mu_mat[j, ]
-        lam * as.numeric(crossprod(mj, Q_K %*% mj))
-      }, numeric(1))
+      # U_j = lambda_j * mu_j' Q_K mu_j  (vectorized over all j at once)
+      mu_Q_mu   <- rowSums((mu_mat %*% Q_K) * mu_mat)  # d-vector
+      lam_valid <- is.finite(lambda_vec) & lambda_vec > 0
+      U         <- lambda_vec * mu_Q_mu
+      U[!lam_valid] <- 0
 
       denom <- (n + K - as.integer(rw_q))
       denom <- max(denom, 1L)
@@ -446,6 +552,72 @@ MSTEP_csmooth <- function(X, Gamma, params, Q_K, lambda_vec,
 }
 
 
+#' Refresh pi/mu to the MAP solution under fixed sigma2 and lambda
+#' @keywords internal
+.refresh_map_mu_csmooth <- function(X, Gamma, params, Q_K, lambda_vec,
+                                    modelName, relative_lambda) {
+  X <- as.matrix(X)
+  d <- ncol(X)
+  K <- ncol(Gamma)
+
+  Nk <- colSums(Gamma)
+  Nk[Nk < 1e-8] <- 1e-8
+  pi_new <- Nk / sum(Nk)
+
+  GX <- t(X) %*% Gamma
+
+  if (modelName == "homoskedastic") {
+    sigma2 <- pmax(as.numeric(params$sigma2), .Machine$double.eps)
+  } else {
+    sigma2 <- pmax(as.matrix(params$sigma2), .Machine$double.eps)
+  }
+
+  mu_mat <- matrix(0, nrow = d, ncol = K)
+
+  for (j in seq_len(d)) {
+    lam <- lambda_vec[j]
+    if (!is.finite(lam) || lam < 0) lam <- 0
+
+    if (modelName == "homoskedastic") {
+      s2j <- sigma2[j]
+      rhs <- as.numeric(GX[j, ]) / s2j
+      A_diag <- Nk / s2j
+
+      if (lam <= 0 || is.null(Q_K)) {
+        mu_mat[j, ] <- as.numeric(GX[j, ]) / Nk
+      } else {
+        Qb <- .compute_Qbase_j(pi_new, sigma2, Q_K, relative_lambda, modelName, j)
+        A  <- diag(A_diag, K, K) + lam * Qb
+        A  <- 0.5 * (A + t(A))
+        L <- chol(A)
+        y <- forwardsolve(t(L), rhs)
+        mu_mat[j, ] <- as.numeric(backsolve(L, y))
+      }
+
+    } else {
+      s2jk <- as.numeric(sigma2[j, ])
+      rhs <- as.numeric(GX[j, ]) / s2jk
+      A_diag <- Nk / s2jk
+
+      if (lam <= 0 || is.null(Q_K)) {
+        mu_mat[j, ] <- as.numeric(GX[j, ]) / Nk
+      } else {
+        Qb <- .compute_Qbase_j(pi_new, sigma2, Q_K, relative_lambda, modelName, j)
+        A  <- diag(A_diag, K, K) + lam * Qb
+        A  <- 0.5 * (A + t(A))
+        L <- chol(A)
+        y <- forwardsolve(t(L), rhs)
+        mu_mat[j, ] <- as.numeric(backsolve(L, y))
+      }
+    }
+  }
+
+  params$pi <- pi_new
+  params$mu <- lapply(seq_len(K), function(k) mu_mat[, k])
+  params
+}
+
+
 
 
 #' Run csmoothEM iterations
@@ -467,16 +639,18 @@ MSTEP_csmooth <- function(X, Gamma, params, Q_K, lambda_vec,
 #'   \describe{
 #'     \item{\code{NULL}}{Inherit \code{object$control$adaptive}.}
 #'     \item{\code{"none"}}{No adaptive update (fixed \code{lambda_vec}).}
-#'     \item{\code{"prior"}}{Prior-based update for \eqn{\lambda_j} using the current M-step \eqn{\mu}.}
+#'     \item{\code{"prior"}}{Obsolete. Retained only for backward compatibility; updates
+#'       \eqn{\lambda_j} from the current M-step \eqn{\mu} via a prior/profile rule and
+#'       should not be used for convergence claims.}
 #'     \item{\code{"ml"}}{Collapsed-ML update for \eqn{\lambda_j} (dispatches to
 #'       \code{\link{do_csmoothEM_ml_collapsed}}).}
 #'   }
-#'   A logical value is accepted for backward compatibility: \code{TRUE} is treated as
-#'   \code{"prior"} and \code{FALSE} as \code{"none"}.
+#'   Logical values are accepted for backward compatibility: \code{TRUE} is interpreted as
+#'   \code{"ml"} and \code{FALSE} as \code{"none"}.
 #' @param lambda_min,lambda_max Positive bounds used for adaptive \eqn{\lambda} updates.
 #' @param sigma_update Character. Only used when \code{adaptive="ml"} (i.e., in the
-#'   collapsed-ML path). Either \code{"mstep"} or \code{"ml"}; see
-#'   \code{\link{do_csmoothEM_ml_collapsed}}.
+#'   collapsed-ML path). Defaults to \code{"ml"}; \code{"mstep"} is retained only
+#'   for backward compatibility; see \code{\link{do_csmoothEM_ml_collapsed}}.
 #' @param sigma_min,sigma_max Positive bounds for \code{sigma2} when \code{adaptive="ml"}
 #'   and \code{sigma_update="ml"}.
 #' @param verbose Logical; if TRUE, print a short progress line each iteration.
@@ -490,7 +664,7 @@ do_csmoothEM <- function(object,
                          adaptive = NULL,          # NULL = inherit; "none" = off; "prior"/"ml" explicit
                          lambda_min = NULL,
                          lambda_max = NULL,
-                         sigma_update = c("mstep", "ml"),  # only used when adaptive == "ml"
+                         sigma_update = c("ml", "mstep"),  # only used when adaptive == "ml"
                          sigma_min = 1e-10,
                          sigma_max = 1e10,
                          verbose = FALSE) {
@@ -528,16 +702,22 @@ do_csmoothEM <- function(object,
   }
 
   # normalize adaptive option (NULL = inherit; "none" = off)
-  if (is.null(adaptive)) adaptive <- object$control$adaptive %||% NULL
-  if (is.logical(adaptive)) adaptive <- if (isTRUE(adaptive)) "prior" else "none"
-  if (is.character(adaptive) && identical(adaptive, "none")) adaptive <- NULL
-  if (!is.null(adaptive)) adaptive <- match.arg(adaptive, choices = c("prior", "ml"))
+  adaptive <- .normalize_csmooth_adaptive(
+    adaptive = adaptive,
+    default = object$control$adaptive %||% NULL,
+    none_as_null = TRUE,
+    caller = "do_csmoothEM()"
+  )
 
 
   # Dispatch: collapsed-ML path (this is the only place sigma_update matters)
   if (!is.null(adaptive) && identical(adaptive, "ml")) {
-    if (missing(sigma_update)) sigma_update <- object$control$sigma_update %||% "mstep"
-    sigma_update <- match.arg(sigma_update, choices = c("mstep", "ml"))
+    if (missing(sigma_update)) sigma_update <- object$control$sigma_update %||% "ml"
+    sigma_update <- .normalize_sigma_update(
+      sigma_update = sigma_update,
+      default = "ml",
+      caller = "do_csmoothEM()"
+    )
 
     if (missing(sigma_min)) sigma_min <- object$control$sigma_min %||% 1e-10
     if (missing(sigma_max)) sigma_max <- object$control$sigma_max %||% 1e10
@@ -560,6 +740,9 @@ do_csmoothEM <- function(object,
   r_rank <- max(K - rw_q, 1L)
 
   params <- object$params
+
+  # Prime the cache so the first E-step can use cached invsig2/logdet
+  params <- cache_csmooth_params(params, modelName)
 
   # ------------------------------------------------------------------
   # Helpers for collapsed objective C = penELBO + const - 0.5*log|H|
@@ -715,6 +898,9 @@ do_csmoothEM <- function(object,
       nugget = nugget, rw_q = rw_q, iterate_once = TRUE
     )
 
+    # Refresh cached invsig2/logdet after sigma2 was updated in M-step
+    params <- cache_csmooth_params(params, modelName)
+
     # Adaptive lambda update
     if (!is.null(adaptive)) {
 
@@ -831,7 +1017,8 @@ do_csmoothEM <- function(object,
 #' @param iter Integer >= 1 number of iterations.
 #' @param record Logical; if TRUE, record traces.
 #' @param lambda_min,lambda_max Bounds for lambda optimization.
-#' @param sigma_update Either \code{"mstep"} (standard M-step update) or \code{"ml"} (optimize collapsed objective).
+#' @param sigma_update Either \code{"ml"} (default; optimize the collapsed objective jointly
+#'   with \eqn{\lambda}) or legacy \code{"mstep"} (standard variance M-step).
 #' @param sigma_min,sigma_max Bounds for sigma2 when \code{sigma_update="ml"}.
 #' @param verbose Logical.
 #'
@@ -843,7 +1030,7 @@ do_csmoothEM_ml_collapsed <- function(object,
                                       record = TRUE,
                                       lambda_min = NULL,
                                       lambda_max = NULL,
-                                      sigma_update = c("mstep", "ml"),
+                                      sigma_update = c("ml", "mstep"),
                                       sigma_min = 1e-10,
                                       sigma_max = 1e10,
                                       verbose = FALSE) {
@@ -884,7 +1071,11 @@ do_csmoothEM_ml_collapsed <- function(object,
     stop("lambda_min/lambda_max must be positive finite numbers with lambda_min <= lambda_max.")
   }
 
-  sigma_update <- match.arg(sigma_update)
+  sigma_update <- .normalize_sigma_update(
+    sigma_update = sigma_update,
+    default = "ml",
+    caller = "do_csmoothEM_ml_collapsed()"
+  )
   sigma_min <- as.numeric(sigma_min)
   sigma_max <- as.numeric(sigma_max)
   if (!is.finite(sigma_min) || !is.finite(sigma_max) || sigma_min <= 0 || sigma_max <= 0 || sigma_min > sigma_max) {
@@ -893,6 +1084,9 @@ do_csmoothEM_ml_collapsed <- function(object,
 
   r_rank <- max(K - rw_q, 1L)
   params <- object$params
+
+  # Prime the cache so the first E-step can use cached invsig2/logdet
+  params <- cache_csmooth_params(params, "homoskedastic")
 
   # ---- helpers ------------------------------------------------
 
@@ -1035,13 +1229,17 @@ do_csmoothEM_ml_collapsed <- function(object,
       lambda_vec[j] <- exp(opt_lam$maximum)
     }
 
-    # 3) M-step: update MAP mu given current Gamma and updated hyperparameters
-    params <- MSTEP_csmooth(
+    # 3) Refresh MAP mu under the current Gamma and collapsed-ML hyperparameters.
+    # sigma2 has already been updated above; do not overwrite it with the
+    # standard variance M-step here.
+    params <- .refresh_map_mu_csmooth(
       X = X, Gamma = Gamma, params = params,
       Q_K = Q_K, lambda_vec = lambda_vec,
-      modelName = "homoskedastic", relative_lambda = relative_lambda,
-      nugget = nugget, rw_q = rw_q, iterate_once = TRUE
+      modelName = "homoskedastic", relative_lambda = relative_lambda
     )
+
+    # Refresh cache after sigma2/mu may have changed this iteration
+    params <- cache_csmooth_params(params, "homoskedastic")
 
     # 4) unified record
     if (record) {
@@ -1217,15 +1415,59 @@ make_init_csmooth <- function(
     centers <- as.numeric(centers)
   }
 
-  # reorder clusters from left to right by centers
-  cluster_order <- order(centers)
-  cluster_rank <- match(cluster_ids, cluster_order)
+  # Assign cluster_rank: rank in ascending-t order (1 = smallest t, K = largest t).
+  #
+  # For "kmeans" and "quantile", all K bins are non-empty, so
+  #   cluster_order = order(centers)  is a permutation of 1..K, and
+  #   match(cluster_ids, cluster_order) correctly maps each cluster ID to its rank.
+  #
+  # For "equal", cut() may produce empty bins, so centers has length < K and
+  #   cluster_order = 1..length(centers) != 1..K.  Calling match() against this
+  #   shorter sequence returns NA for any bin ID > length(centers), which forces
+  #   those points to pseudotime = 0 - a silent, non-monotone bug.
+  #   Since equal-width bins from cut() are already ordered by t (bin 1 = lowest,
+  #   bin K = highest), the bin ID itself is the correct rank.
+  if (discretization == "equal") {
+    cluster_rank <- cluster_ids          # already 1..K in ascending-t order
+  } else {
+    cluster_order <- order(centers)
+    cluster_rank  <- match(cluster_ids, cluster_order)
+  }
 
   # ---- mu ----
-  mu_list <- lapply(seq_len(K), function(k) {
+  # First pass: compute means for non-empty bins (NULL for empty ones).
+  mu_raw <- lapply(seq_len(K), function(k) {
     idx <- which(cluster_rank == k)
-    if (length(idx) == 0) rep(0, d) else colMeans(X[idx, , drop = FALSE])
+    if (length(idx) == 0L) NULL else colMeans(X[idx, , drop = FALSE])
   })
+
+  # Second pass: fill empty bins by linear interpolation between the nearest
+  # non-empty neighbours on each side.  Edge cases (no left / no right
+  # neighbour) fall back to the single available neighbour (constant extrapolation).
+  non_empty <- which(!vapply(mu_raw, is.null, logical(1L)))
+  if (length(non_empty) == 0L) stop("make_init_csmooth: all K bins are empty.")
+
+  mu_list <- vector("list", K)
+  for (k in seq_len(K)) {
+    if (!is.null(mu_raw[[k]])) {
+      mu_list[[k]] <- mu_raw[[k]]
+    } else {
+      left_nb  <- non_empty[non_empty < k]
+      right_nb <- non_empty[non_empty > k]
+      has_left  <- length(left_nb)  > 0L
+      has_right <- length(right_nb) > 0L
+
+      if (has_left && has_right) {
+        l <- max(left_nb);  r <- min(right_nb)
+        w_r <- (k - l) / (r - l)          # weight toward right neighbour
+        mu_list[[k]] <- (1 - w_r) * mu_raw[[l]] + w_r * mu_raw[[r]]
+      } else if (has_left) {
+        mu_list[[k]] <- mu_raw[[max(left_nb)]]
+      } else {
+        mu_list[[k]] <- mu_raw[[min(right_nb)]]
+      }
+    }
+  }
 
   # # ---- pi ----
   Nk <- tabulate(cluster_rank, nbins = K)
@@ -1409,9 +1651,10 @@ initialize_ordering_csmooth <- function(
 
   ordering <- c(ordering_result, list(method = method))
   list(
-    params = list(pi = init$pi, mu = init$mu, sigma2 = init$sigma2),
-    keep_idx = init$keep_idx,
-    ordering = ordering
+    params       = list(pi = init$pi, mu = init$mu, sigma2 = init$sigma2),
+    keep_idx     = init$keep_idx,
+    cluster_rank = init$cluster_rank,
+    ordering     = ordering
   )
 }
 
@@ -1453,15 +1696,17 @@ initialize_ordering_csmooth <- function(
 #' @param adaptive Character specifying how to initialize/update \code{lambda_vec}:
 #'   \describe{
 #'     \item{\code{"none"}}{Do not estimate \code{lambda_vec} from the initialization; use \code{lambda}.}
-#'     \item{\code{"prior"}}{Prior-based estimate using the initialized component means \eqn{\mu}.}
+#'     \item{\code{"prior"}}{Obsolete. Retained only for backward compatibility; uses a
+#'       prior/profile estimate from the initialized component means \eqn{\mu}.}
 #'     \item{\code{"ml"}}{Collapsed-ML warm start (dispatches to \code{do_csmoothEM_ml_collapsed()} inside
 #'       \code{do_csmoothEM()}), allowing optional ML updates of \eqn{\sigma^2}.}
 #'   }
-#'   Logical values are accepted for backward compatibility: \code{TRUE} is treated as \code{"prior"}
-#'   and \code{FALSE} as \code{"none"}.
+#'   Logical values are accepted for backward compatibility: \code{TRUE} is interpreted as
+#'   \code{"ml"} and \code{FALSE} as \code{"none"}.
 #' @param lambda_min,lambda_max Positive bounds for \code{lambda_vec} (used when \code{adaptive!="none"}).
 #' @param sigma_update Character. Only used when \code{adaptive="ml"} during the warm start.
-#'   Either \code{"mstep"} or \code{"ml"}; see \code{\link{do_csmoothEM_ml_collapsed}}.
+#'   Defaults to \code{"ml"}; legacy \code{"mstep"} is retained only for backward compatibility.
+#'   See \code{\link{do_csmoothEM_ml_collapsed}}.
 #' @param sigma_min,sigma_max Positive bounds for \code{sigma2} when \code{adaptive="ml"} and
 #'   \code{sigma_update="ml"}.
 #' @param discretization Discretization method passed to \code{initialize_ordering_csmooth()}.
@@ -1472,12 +1717,13 @@ initialize_ordering_csmooth <- function(
 #' \eqn{Q_{\mathrm{full}} = I_d \otimes Q_K}, the rank deficiency is \eqn{rw_q} per coordinate,
 #' so a convenient degrees-of-freedom term is \eqn{r = K - rw_q}.
 #'
-#' When \code{adaptive = "prior"}, the initializer estimates each coordinate penalty by:
+#' When \code{adaptive = "prior"} (obsolete), the initializer estimates each coordinate penalty by:
 #' \deqn{\lambda_j = r \big/ \left( \mu_{j\cdot}^\top Q_{j,\mathrm{base}} \mu_{j\cdot} \right),}
 #' where \eqn{\mu_{j\cdot}} is the length-K vector of component means for coordinate \eqn{j}, and
 #' \eqn{Q_{j,\mathrm{base}}} is the coordinate-specific base precision returned by
 #' \code{.compute_Qbase_j()} (equivalently, \eqn{Q_K} possibly rescaled when
 #' \code{relative_lambda = TRUE}). The estimate is clamped to \eqn{[\text{lambda_min},\text{lambda_max}]}.
+#' This mode is heuristic and should not be treated as a convergence-guaranteed update.
 #'
 #' When \code{adaptive = "ml"}, the warm start uses the collapsed-ML routine. In this mode,
 #' \code{do_csmoothEM()} dispatches to \code{do_csmoothEM_ml_collapsed()}, which optimizes a
@@ -1533,7 +1779,7 @@ initialize_csmoothEM <- function(
   if (length(rw_q) != 1L || is.na(rw_q) || rw_q < 0L) stop("rw_q must be a single integer >= 0.")
 
   num_iter <- as.integer(num_iter)
-  if (length(num_iter) != 1L || is.na(num_iter) || num_iter < 1L) stop("num_iter must be integer >= 1.")
+  if (length(num_iter) != 1L || is.na(num_iter) || num_iter < 0L) stop("num_iter must be integer >= 0.")
 
   lambda_min <- as.numeric(lambda_min)
   lambda_max <- as.numeric(lambda_max)
@@ -1541,7 +1787,11 @@ initialize_csmoothEM <- function(
     stop("lambda_min/lambda_max must be positive finite numbers with lambda_min <= lambda_max.")
   }
 
-  sigma_update <- match.arg(sigma_update)
+  sigma_update <- .normalize_sigma_update(
+    sigma_update = sigma_update,
+    default = "ml",
+    caller = "initialize_csmoothEM()"
+  )
   sigma_min <- as.numeric(sigma_min)
   sigma_max <- as.numeric(sigma_max)
   if (!is.finite(sigma_min) || !is.finite(sigma_max) || sigma_min <= 0 || sigma_max <= 0 || sigma_min > sigma_max) {
@@ -1549,8 +1799,11 @@ initialize_csmoothEM <- function(
   }
 
   # --- normalize adaptive option (match do_csmoothEM semantics)
-  if (is.logical(adaptive)) adaptive <- if (isTRUE(adaptive)) "ml" else "none"
-  adaptive <- match.arg(adaptive, choices = c("none", "prior", "ml"))
+  adaptive <- .normalize_csmooth_adaptive(
+    adaptive = adaptive,
+    default = "none",
+    caller = "initialize_csmoothEM()"
+  )
 
   # choose K if not provided
   if (is.null(K)) {
@@ -1687,8 +1940,25 @@ initialize_csmoothEM <- function(
   obj$control$sigma_max <- sigma_max
 
   # ------------------------------------------------------------
-  # 5) warm start: run num_iter iterations
+  # 5) warm start: run num_iter EM iterations
+  #    iter=0: return init-only object with hard gamma from discretization
   # ------------------------------------------------------------
+  if (num_iter == 0L) {
+    cr <- init$cluster_rank
+    if (!is.null(cr)) {
+      # ordering-based methods: hard assignment from discretization
+      n_use <- length(cr)
+      gamma_hard <- matrix(0, n_use, K_eff)
+      gamma_hard[cbind(seq_len(n_use), cr)] <- 1
+    } else {
+      # random method: no ordering -> soft E-step as fallback
+      obj$params <- cache_csmooth_params(obj$params, modelName)
+      gamma_hard <- ESTEP_csmooth(X_use, obj$params, modelName)
+    }
+    obj$gamma <- gamma_hard
+    return(obj)
+  }
+
   obj <- do_csmoothEM(
     object = obj,
     data = X_use,
@@ -1996,7 +2266,7 @@ summary.csmooth_em <- function(object, ...) {
   sig2_rng <- c(NA_real_, NA_real_)
   sig2_type <- NA_character_
   if (!is.null(sig2)) {
-    sig2_type <- if (is.matrix(sig2)) "matrix(d×K)" else "vector(d)"
+    sig2_type <- if (is.matrix(sig2)) "matrix(d x K)" else "vector(d)"
     sig2_rng <- c(min(sig2), max(sig2))
   }
 
@@ -2142,11 +2412,13 @@ print.summary.csmooth_em <- function(x, ...) {
 #' @param K Optional integer \eqn{\ge 2}. Number of mixture components. If \code{NULL},
 #'   the default logic in \code{initialize_csmoothEM} is used.
 #' @param adaptive Character. One of \code{"none"}, \code{"prior"}, \code{"ml"}.
-#'   Logical values are accepted for backward compatibility: \code{TRUE} is treated as
-#'   \code{"prior"} and \code{FALSE} as \code{"none"}.
+#'   \code{"prior"} is obsolete and retained only for backward compatibility.
+#'   Logical values are accepted for backward compatibility: \code{TRUE} is interpreted as
+#'   \code{"ml"} and \code{FALSE} as \code{"none"}.
 #' @param lambda_min,lambda_max Positive bounds for \code{lambda_vec} (passed to \code{initialize_csmoothEM}).
 #' @param sigma_update Character. Only used when \code{adaptive="ml"} (passed to \code{initialize_csmoothEM}).
-#'   Either \code{"mstep"} or \code{"ml"}; see \code{\link{do_csmoothEM_ml_collapsed}}.
+#'   Defaults to \code{"ml"}; legacy \code{"mstep"} is retained only for backward compatibility.
+#'   See \code{\link{do_csmoothEM_ml_collapsed}}.
 #' @param sigma_min,sigma_max Positive bounds for \code{sigma2} when \code{adaptive="ml"} and
 #'   \code{sigma_update="ml"}.
 #' @param seed Optional integer seed. If provided, a different derived seed is used per method.
@@ -2174,10 +2446,10 @@ parallel_initial_csmoothEM <- function(
     num_iter = 1,
     num_cores = 2,
     K = NULL,
-    adaptive = "prior",
+    adaptive = "ml",
     lambda_min = 1e-8,
     lambda_max = 1e8,
-    sigma_update = c("mstep", "ml"),
+    sigma_update = c("ml", "mstep"),
     sigma_min = 1e-10,
     sigma_max = 1e10,
     seed = NULL,
@@ -2190,11 +2462,17 @@ parallel_initial_csmoothEM <- function(
   methods <- unique(methods)
 
   # normalize adaptive option (match initialize semantics)
-  if (is.null(adaptive)) adaptive <- "none"
-  if (is.logical(adaptive)) adaptive <- if (isTRUE(adaptive)) "prior" else "none"
-  adaptive <- match.arg(adaptive, choices = c("none", "prior", "ml"))
+  adaptive <- .normalize_csmooth_adaptive(
+    adaptive = adaptive,
+    default = "none",
+    caller = "parallel_initial_csmoothEM()"
+  )
 
-  sigma_update <- match.arg(sigma_update)
+  sigma_update <- .normalize_sigma_update(
+    sigma_update = sigma_update,
+    default = "ml",
+    caller = "parallel_initial_csmoothEM()"
+  )
 
   if (!is.null(seed)) {
     set.seed(seed)
@@ -2334,11 +2612,12 @@ parallel_initial_csmoothEM <- function(
 #' @param K Optional integer \eqn{\ge 2}. Number of mixture components. If \code{NULL},
 #'   the default logic in \code{initialize_csmoothEM} is used.
 #' @param adaptive Character. One of \code{"none"}, \code{"prior"}, \code{"ml"}.
-#'   Logical values are accepted for backward compatibility: \code{TRUE} is treated as
-#'   \code{"prior"} and \code{FALSE} as \code{"none"}.
+#'   \code{"prior"} is obsolete and retained only for backward compatibility.
+#'   Logical values are accepted for backward compatibility: \code{TRUE} is interpreted as
+#'   \code{"ml"} and \code{FALSE} as \code{"none"}.
 #' @param lambda_min,lambda_max Positive bounds for \code{lambda_vec} when \code{adaptive!="none"}.
 #' @param sigma_update Character. Only used when \code{adaptive="ml"} (passed through).
-#'   Either \code{"mstep"} or \code{"ml"}.
+#'   Defaults to \code{"ml"}; legacy \code{"mstep"} is retained only for backward compatibility.
 #' @param sigma_min,sigma_max Positive bounds for \code{sigma2} when \code{adaptive="ml"} and
 #'   \code{sigma_update="ml"}.
 #' @param plot Logical; if \code{TRUE}, plot traces across methods.
@@ -2365,10 +2644,10 @@ optimize_initial_csmoothEM <- function(
     num_iter = 5,
     num_cores = 2,
     K = NULL,
-    adaptive = "prior",
+    adaptive = "ml",
     lambda_min = 1e-8,
     lambda_max = 1e8,
-    sigma_update = c("mstep", "ml"),
+    sigma_update = c("ml", "mstep"),
     sigma_min = 1e-10,
     sigma_max = 1e10,
     plot = FALSE,
@@ -2379,10 +2658,16 @@ optimize_initial_csmoothEM <- function(
 ) {
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
-  if (is.null(adaptive)) adaptive <- "none"
-  if (is.logical(adaptive)) adaptive <- if (isTRUE(adaptive)) "prior" else "none"
-  adaptive <- match.arg(adaptive, choices = c("none", "prior", "ml"))
-  sigma_update <- match.arg(sigma_update)
+  adaptive <- .normalize_csmooth_adaptive(
+    adaptive = adaptive,
+    default = "none",
+    caller = "optimize_initial_csmoothEM()"
+  )
+  sigma_update <- .normalize_sigma_update(
+    sigma_update = sigma_update,
+    default = "ml",
+    caller = "optimize_initial_csmoothEM()"
+  )
 
   fits <- parallel_initial_csmoothEM(
     X = X,

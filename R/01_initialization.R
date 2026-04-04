@@ -138,15 +138,58 @@ make_init <- function(
     centers <- as.numeric(centers)
   }
 
-  # reorder clusters from left to right by centers
-  cluster_order <- order(centers)
-  cluster_rank <- match(cluster_ids, cluster_order)
+  # Assign cluster_rank: rank in ascending-t order (1 = smallest t, K = largest t).
+  #
+  # For "kmeans" and "quantile", all K bins are non-empty, so
+  #   cluster_order = order(centers)  is a permutation of 1..K, and
+  #   match(cluster_ids, cluster_order) correctly maps each cluster ID to its rank.
+  #
+  # For "equal", cut() may produce empty bins, so centers has length < K and
+  #   cluster_order = 1..length(centers) != 1..K.  Calling match() against this
+  #   shorter sequence returns NA for any bin ID > length(centers), which forces
+  #   those points to pseudotime = 0 — a silent, non-monotone bug.
+  #   Since equal-width bins from cut() are already ordered by t (bin 1 = lowest,
+  #   bin K = highest), the bin ID itself is the correct rank.
+  if (discretization == "equal") {
+    cluster_rank <- cluster_ids          # already 1..K in ascending-t order
+  } else {
+    cluster_order <- order(centers)
+    cluster_rank  <- match(cluster_ids, cluster_order)
+  }
 
   # ---- mu ----
-  mu_list <- lapply(seq_len(K), function(k) {
+  # First pass: means for non-empty bins (NULL for empty ones).
+  mu_raw <- lapply(seq_len(K), function(k) {
     idx <- which(cluster_rank == k)
-    if (length(idx) == 0) rep(0, d) else colMeans(X[idx, , drop = FALSE])
+    if (length(idx) == 0L) NULL else colMeans(X[idx, , drop = FALSE])
   })
+
+  # Second pass: fill empty bins by linear interpolation between the nearest
+  # non-empty neighbours; fall back to constant extrapolation at the edges.
+  non_empty <- which(!vapply(mu_raw, is.null, logical(1L)))
+  if (length(non_empty) == 0L) stop("make_init: all K bins are empty.")
+
+  mu_list <- vector("list", K)
+  for (k in seq_len(K)) {
+    if (!is.null(mu_raw[[k]])) {
+      mu_list[[k]] <- mu_raw[[k]]
+    } else {
+      left_nb  <- non_empty[non_empty < k]
+      right_nb <- non_empty[non_empty > k]
+      has_left  <- length(left_nb)  > 0L
+      has_right <- length(right_nb) > 0L
+
+      if (has_left && has_right) {
+        l <- max(left_nb);  r <- min(right_nb)
+        w_r <- (k - l) / (r - l)
+        mu_list[[k]] <- (1 - w_r) * mu_raw[[l]] + w_r * mu_raw[[r]]
+      } else if (has_left) {
+        mu_list[[k]] <- mu_raw[[max(left_nb)]]
+      } else {
+        mu_list[[k]] <- mu_raw[[min(right_nb)]]
+      }
+    }
+  }
 
   # ---- sigma ----
   if (assume_EEI) {
@@ -196,7 +239,9 @@ make_init <- function(
 #' \code{t} scaled to \eqn{[0,1]}.
 #'
 #' @param X Numeric matrix \eqn{n \times D} (rows are observations).
-#' @param k Number of nearest neighbors.
+#' @param k Number of nearest neighbors. If left at the default and the
+#'   resulting kNN graph is disconnected, the function automatically increases
+#'   \code{k} until the graph becomes connected.
 #' @param weight Similarity type: \code{"rbf"}, \code{"inv"}, or \code{"binary"}.
 #' @param sigma Bandwidth for \code{weight="rbf"}; if \code{NULL}, uses median kNN distance.
 #' @param keep Component handling: \code{"giant"} keeps the largest connected component;
@@ -204,7 +249,8 @@ make_init <- function(
 #' @param return_full If \code{TRUE} (default), return \code{t} of length \eqn{n}
 #'   with \code{NA} for nodes excluded by \code{keep="giant"}.
 #'   If \code{FALSE}, return \code{t} only for the kept nodes.
-#' @return A list with \code{t}, \code{keep_idx}, and \code{n_components}.
+#' @return A list with \code{t}, \code{keep_idx}, \code{n_components}, and
+#'   \code{k_used}.
 #' @export
 fiedler_ordering <- function(
     X,
@@ -216,35 +262,84 @@ fiedler_ordering <- function(
 ) {
   X <- as.matrix(X)
   n0 <- nrow(X)
+  k_missing <- missing(k)
   if (n0 < 3) stop("Need n >= 3.")
+  if (k_missing) {
+    k <- min(as.integer(k), n0 - 1L)
+  }
   if (k < 2 || k >= n0) stop("Require 2 <= k < n.")
 
   weight <- match.arg(weight)
   keep <- match.arg(keep)
 
-  nn <- RANN::nn2(data = X, query = X, k = k + 1, treetype = "kd")
-  idx  <- nn$nn.idx[, -1, drop = FALSE]
-  dist <- nn$nn.dists[, -1, drop = FALSE]
+  build_knn_graph <- function(k_use) {
+    nn <- RANN::nn2(data = X, query = X, k = k_use + 1L, treetype = "kd")
+    idx <- nn$nn.idx[, -1, drop = FALSE]
+    dist <- nn$nn.dists[, -1, drop = FALSE]
 
-  i <- rep(seq_len(n0), each = k)
-  j <- as.vector(t(idx))
-  d <- as.vector(t(dist))
+    i <- rep(seq_len(n0), each = k_use)
+    j <- as.vector(t(idx))
+    d <- as.vector(t(dist))
 
-  w <- switch(
-    weight,
-    binary = rep(1, length(d)),
-    inv    = 1 / pmax(d, 1e-12),
-    rbf    = {
-      if (is.null(sigma)) sigma <- stats::median(d)
-      exp(-(d^2) / (2 * sigma^2))
+    sigma_use <- sigma
+    w <- switch(
+      weight,
+      binary = rep(1, length(d)),
+      inv = 1 / pmax(d, 1e-12),
+      rbf = {
+        if (is.null(sigma_use)) sigma_use <- stats::median(d)
+        exp(-(d^2) / (2 * sigma_use^2))
+      }
+    )
+
+    W <- Matrix::sparseMatrix(i = i, j = j, x = w, dims = c(n0, n0))
+    W <- pmax(W, Matrix::t(W))
+    g <- igraph::graph_from_adjacency_matrix(W > 0, mode = "undirected", diag = FALSE)
+
+    list(
+      W = W,
+      comp = igraph::components(g)
+    )
+  }
+
+  graph_fit <- build_knn_graph(k)
+
+  if (k_missing && graph_fit$comp$no > 1L) {
+    lower_k <- k
+    upper_k <- k
+
+    while (graph_fit$comp$no > 1L && upper_k < (n0 - 1L)) {
+      lower_k <- upper_k
+      upper_k <- min(
+        n0 - 1L,
+        max(upper_k + 1L, as.integer(ceiling(1.5 * upper_k)))
+      )
+      graph_fit <- build_knn_graph(upper_k)
     }
-  )
 
-  W <- Matrix::sparseMatrix(i = i, j = j, x = w, dims = c(n0, n0))
-  W <- pmax(W, Matrix::t(W))  # symmetrize (max)
+    if (graph_fit$comp$no == 1L && upper_k > lower_k) {
+      best_fit <- graph_fit
+      left <- lower_k
+      right <- upper_k
+      while ((right - left) > 1L) {
+        mid <- left + (right - left) %/% 2L
+        candidate <- build_knn_graph(mid)
+        if (candidate$comp$no == 1L) {
+          right <- mid
+          best_fit <- candidate
+        } else {
+          left <- mid
+        }
+      }
+      k <- right
+      graph_fit <- best_fit
+    } else {
+      k <- upper_k
+    }
+  }
 
-  g <- igraph::graph_from_adjacency_matrix(W > 0, mode = "undirected", diag = FALSE)
-  comp <- igraph::components(g)
+  W <- graph_fit$W
+  comp <- graph_fit$comp
   keep_idx <- seq_len(n0)
 
   if (keep == "giant" && comp$no > 1) {
@@ -257,7 +352,12 @@ fiedler_ordering <- function(
 
   if (nrow(Wk) < 3) {
     if (return_full) {
-      return(list(t = rep(NA_real_, n0), keep_idx = keep_idx, n_components = comp$no))
+      return(list(
+        t = rep(NA_real_, n0),
+        keep_idx = keep_idx,
+        n_components = comp$no,
+        k_used = k
+      ))
     }
     stop("Largest connected component has < 3 nodes; increase k or filter outliers.")
   }
@@ -292,7 +392,8 @@ fiedler_ordering <- function(
   list(
     t = t_out,
     keep_idx = keep_idx,
-    n_components = comp$no
+    n_components = comp$no,
+    k_used = k
   )
 }
 
@@ -350,16 +451,30 @@ tSNE_ordering <- function(
 #' @param center logical.
 #' @param scale logical.
 #' @param scale01 logical; if TRUE, rescale returned t to [0,1].
+#' @param component Integer principal-component index to use as the ordering
+#'   score. Defaults to 1.
 #' @return list(t, keep_idx)
 #' @export
 PCA_ordering <- function(
     X,
     center = TRUE,
     scale = FALSE,
-    scale01 = TRUE
+    scale01 = TRUE,
+    component = 1L
 ) {
   X <- as.matrix(X)
-  t <- .pc1(X, center = center, scale. = scale)
+  component <- as.integer(component)
+  if (component < 1L) stop("component must be >= 1.")
+  max_comp <- min(nrow(X), ncol(X))
+  if (component > max_comp)
+    stop(sprintf("component %d exceeds available PCs (%d).", component, max_comp))
+
+  if (component == 1L) {
+    t <- .pc1(X, center = center, scale. = scale)
+  } else {
+    pca <- stats::prcomp(X, center = center, scale. = scale)
+    t <- pca$x[, component]
+  }
   if (scale01) t <- .scale01(t)
   list(t = t, keep_idx = seq_len(nrow(X)))
 }
@@ -764,8 +879,8 @@ initialize_smoothEM <- function(
   method <- match.arg(method)
 
   num_iter <- as.integer(num_iter)
-  if (length(num_iter) != 1L || is.na(num_iter) || num_iter < 1L) {
-    stop("num_iter must be a single integer >= 1.")
+  if (length(num_iter) != 1L || is.na(num_iter) || num_iter < 0L) {
+    stop("num_iter must be a single integer >= 0.")
   }
 
   lambda_min <- as.numeric(lambda_min)
@@ -925,6 +1040,42 @@ initialize_smoothEM <- function(
     }
 
     Q_prior <- lambda_use * Q_base
+
+    # Special case: iter = 0 — return init-only object with hard gamma from discretization
+    if (num_iter == 0L) {
+      init_params_cached <- init_cov_cache_fast(init_params)
+      cr <- init_params$cluster_rank
+      if (!is.null(cr)) {
+        # ordering-based methods: hard assignment from discretization
+        n_use <- length(cr)
+        K_use <- length(init_params$pi)
+        gamma_hard <- matrix(0, n_use, K_use)
+        gamma_hard[cbind(seq_len(n_use), cr)] <- 1
+      } else {
+        # random method: no ordering → soft E-step as fallback
+        gamma_hard <- ESTEP(X, init_params_cached)
+      }
+      fit_0 <- list(
+        params       = init_params_cached,
+        gamma        = gamma_hard,
+        elbo_trace   = numeric(0),
+        loglik_trace = numeric(0),
+        data         = if (include.data) X else NULL
+      )
+      return(finalize_and_continue(
+        fit       = fit_0,
+        Q_base    = Q_base,
+        lambda    = lambda_use,
+        meta_init = list(
+          method  = method,
+          details = list(
+            K                  = K,
+            lambda_init_est    = lambda_init_est,
+            lambda_init_source = lambda_init_source
+          )
+        )
+      ))
+    }
 
     # warm start: run exactly ONE EM outer iteration
     fit <- EM_algorithm(
@@ -1187,7 +1338,7 @@ parallel_initial <- function(
     on.exit(parallel::stopCluster(cl), add = TRUE)
 
     parallel::clusterEvalQ(cl, {
-      suppressPackageStartupMessages(library(smoothEMr))
+      suppressPackageStartupMessages(library(MPCurver))
       NULL
     })
 
@@ -1245,7 +1396,6 @@ parallel_initial <- function(
   attr(results, "summary") <- sum_df
   results
 }
-
 
 
 #' Choose the best SmoothEM initialization by ELBO
@@ -1439,6 +1589,3 @@ optimize_initial <- function(
 
   best
 }
-
-
-

@@ -1,225 +1,264 @@
 ---
-title: "Intro to smoothEMr"
+title: "Introduction to MPCurver"
 output:
   rmarkdown::html_vignette:
-    mathjax: default
+    toc: true
 vignette: >
-  %\VignetteIndexEntry{Intro to smoothEMr}
+  %\VignetteIndexEntry{Introduction to MPCurver}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment  = "#>",
-  message  = FALSE,
-  warning  = FALSE,
-  fig.width  = 6,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 7,
   fig.height = 5
 )
 ```
 
-```{r setup, include=FALSE}
-library(smoothEMr)
+```{r load}
+library(MPCurver)
+set.seed(42)
 ```
 
-## Model overview
+## Overview
 
-`smoothEMr` fits a Gaussian mixture model with a structured (smoothness) prior on the component means.
-Let $X_i \in \mathbb{R}^d$ be the observed vector for $i = 1,\dots,n$, and let $z_i \in \{1,\dots,K\}$ be the latent component label. The observation model is
+`MPCurver` fits smooth trajectory models for pseudotime inference in
+high-dimensional data. Given an $n \times d$ data matrix, the package
+recovers a latent ordering of the $n$ samples by fitting a Gaussian mixture
+model whose component means are constrained to vary smoothly along an ordered
+axis.
 
-\[
-X_i \mid z_i = k \sim N(\mu_k, \Sigma),
-\qquad \Pr(z_i = k) = \pi_k .
-\]
+The main entry point is `fit_mpcurve()`, which now exposes a CAVI-first public
+interface. Legacy `smooth_em` and `csmooth_em` routines remain available as
+lower-level functions for historical comparison, but are not part of the
+recommended wrapper workflow.
 
-To encourage *ordered / smooth transitions* across components $k=1,\dots,K$, we place a multivariate normal prior on the stacked mean vector
-$U = (\mu_1^\top, \dots, \mu_K^\top)^\top$:
+## The model
 
-\[
-U \sim N(0, Q_\lambda^{-1}),
-\]
+We observe a data matrix
+$$
+X = (x_{ij}) \in \mathbb{R}^{n \times d}.
+$$
 
-where the precision matrix $Q_\lambda$ encodes the desired structure across components.
-For computational efficiency, we require $Q_\lambda$ to be sparse so the prior is a GMRF (Gaussian Markov random field).
-Many common GMRF priors can be interpreted as discrete analogues of continuous GP priors.
-Equivalently, the M-step solves a penalized optimization problem with quadratic penalty $\tfrac{1}{2} U^\top Q_\lambda U$.
+The MPCurve model posits:
 
-The default choice in `smoothEMr` is a $q$-th order random-walk (RW) prior, with
+1. Each sample $i$ has a latent position $t_i \in \{1,\dots,K\}$ along an
+   ordered grid of $K$ components.
+2. Each feature $j$ has a smooth trajectory
+   $u_j = (u_{j1},\dots,u_{jK})^\top$ across the $K$ components.
+3. Observations follow a Gaussian likelihood:
+   $$
+   x_{ij} \mid t_i = k,\; u_j,\; \sigma_j^2
+   \;\sim\;
+   N(u_{jk},\; \sigma_j^2).
+   $$
+4. Each trajectory is regularised by a Gaussian Markov random field (GMRF)
+   prior:
+   $$
+   u_j \sim N\!\bigl(0,\; (\lambda_j\, Q_K)^{-1}\bigr),
+   $$
+   where $Q_K$ is a random-walk precision matrix on the $K$ grid points and
+   $\lambda_j > 0$ controls the smoothness of feature $j$.
 
-\[
-Q_\lambda = \lambda Q_{\mathrm{rw}q},
-\]
+Both $\sigma_j^2$ and $\lambda_j$ are feature-specific and are estimated
+from the data.
 
-where $Q_{\mathrm{rw}q}$ is the precision matrix induced by $q$-th order discrete differences.
-Larger $\lambda$ enforces stronger smoothness across neighboring components.
+## The algorithm
 
-Equivalently, letting $\mu_{\cdot,j} = (\mu_{1,j},\dots,\mu_{K,j})^\top \in \mathbb{R}^K$, the RW2 penalty can be written as
-\[
-\sum_{k=3}^K \big(\mu_{k,j} - 2\mu_{k-1,j} + \mu_{k-2,j}\big)^2
-\;=\;
-\mu_{\cdot,j}^\top Q_{\mathrm{rw}2}\,\mu_{\cdot,j},
-\qquad
-Q_{\mathrm{rw}2} = D_2^\top D_2,
-\]
-where $D_2 \in \mathbb{R}^{(K-2)\times K}$ is the second-difference matrix with rows $(0,\dots,0,\,1,\,-2,\,1,\,0,\dots,0)$.
+`MPCurver` uses coordinate-ascent variational inference (CAVI).
+The posterior over latent positions and trajectories is approximated by a
+mean-field family:
+$$
+q(T,U)
+= \prod_{i=1}^n q_i(t_i)\;\prod_{j=1}^d q_j(u_j),
+$$
+where $q_j(u_j) = N(m_j, S_j)$.
 
-By default, `smoothEMr` assumes $\Sigma$ is diagonal and shared across components (homoskedasticity), but the framework can be extended to accommodate heteroskedasticity or other covariance structures.
+CAVI maximises the evidence lower bound (ELBO) one block at a time.
+Each coordinate update has a closed-form solution:
 
+| Block | Update |
+|---|---|
+| Trajectories $q(u_j)$ | $S_j = (\lambda_j Q_K + \mathrm{diag}(N_k/\sigma_j^2))^{-1}$, $\;m_j = S_j b_j$ |
+| Positions $q(t_i)$ | $r_{ik} \propto \pi_k \exp\!\bigl(-\tfrac{1}{2}\sum_j [(x_{ij}-m_{jk})^2 + S_{j,kk}]/\sigma_j^2\bigr)$ |
+| Mixing weights | $\pi_k = N_k / n$ |
+| Feature variance | $\sigma_j^2 = \tfrac{1}{n}\sum_{i,k} r_{ik}\bigl[(x_{ij}-m_{jk})^2 + S_{j,kk}\bigr]$ |
+| Smoothness | $\lambda_j = \mathrm{rank}(Q_K)\big/\bigl(m_j^\top Q_K m_j + \mathrm{tr}(Q_K S_j)\bigr)$ |
 
-## Algorithm overview (smooth-EM)
+Because every update is an exact coordinate maximiser, the recorded
+`elbo_trace` is guaranteed to be non-decreasing.
 
-Fix a smoothing strength $\lambda$ and a sparse precision matrix $Q_\lambda = \lambda Q_{\mathrm{rw}q}$.
-Let $U = (\mu_1^\top,\dots,\mu_K^\top)^\top$ stack all component means.
-We seek a MAP estimate by maximizing the log-posterior (up to an additive constant) over $(\pi,U,\Sigma)$:
+A key feature of the CAVI updates is the **posterior uncertainty term**
+$S_{j,kk}$, which appears in both the position update and the variance
+update. This is what distinguishes the variational approach from a simpler
+plug-in EM algorithm.
 
-\[
-J(\pi,U,\Sigma;\lambda)
-=
-\sum_{i=1}^n \log\!\Big(\sum_{k=1}^K \pi_k\, p(X_i \mid \mu_k,\Sigma)\Big)
-\;-\; \tfrac{1}{2} U^\top Q_\lambda U
-\;+\; \text{const}(\lambda),
-\]
-where $\text{const}(\lambda)$ collects terms that do not depend on $(\pi,U,\Sigma)$.
+## Example: fitting a spiral
 
-The smooth-EM algorithm performs coordinate ascent on an ELBO (evidence lower bound)
-$\mathrm{ELBO}(\Gamma,\pi,U,\Sigma;\lambda)$ of the form
-\[
-\mathrm{ELBO}(\Gamma,\pi,U,\Sigma;\lambda)
-=
-\sum_{i=1}^n \sum_{k=1}^K \gamma_{ik}
-\Big\{
-\log \pi_k + \log p(X_i \mid \mu_k,\Sigma)
-\Big\}
-\;+\; H(\Gamma)
-\;-\; \tfrac{1}{2} U^\top Q_\lambda U
-\;+\; \text{const}(\lambda),
-\]
-where $H(\Gamma) = -\sum_{i,k}\gamma_{ik}\log\gamma_{ik}$ is the entropy term.
+We simulate a 2D spiral with 1000 samples.
 
-**Relationship between ELBO and the objective.**
-For any $\Gamma$,
-\[
-J(\pi,U,\Sigma;\lambda) \;\ge\; \mathrm{ELBO}(\Gamma,\pi,U,\Sigma;\lambda),
-\]
-and equality holds when $\gamma_{ik} = \Pr(z_i=k \mid X_i,\pi,U,\Sigma)$ (i.e., $\Gamma$ equals the posterior responsibilities).
-Thus, maximizing the ELBO provides a monotone lower-bound ascent procedure for the MAP objective $J$.
-
-Given current parameter values, each iteration alternates:
-
-1. **E-step (update $\Gamma$):**
-   \[
-   \gamma_{ik} \propto \pi_k\, p(X_i \mid \mu_k,\Sigma),
-   \quad \text{normalized over } k=1,\dots,K.
-   \]
-
-2. **M-step (update $\pi,U,\Sigma$):**
-   update $\pi$ and $\Sigma$ in closed form given $\Gamma$, and update $U$ by maximizing
-   \[
-   U \leftarrow \arg\max_U
-   \Big\{
-   \sum_{i,k} \gamma_{ik}\log p(X_i \mid \mu_k,\Sigma)
-   \;-\; \tfrac{1}{2} U^\top Q_\lambda U
-   \Big\}.
-   \]
-
-With $\lambda$ fixed, the ELBO is non-decreasing over iterations; moreover, because each E-step makes the bound tight at the current parameters, the MAP objective $J$ is also non-decreasing.
-
-
-## A simple 2D example
-
-We simulate data from a spiral (swiss-roll) embedded in 2D space, then fit a smoothEM model.
-
-```{r}
-sim <- simulate_swiss_roll_1d_2d(n = 1500, sigma = 0.2, seed = 123)
-
-plot(sim$obs$x, sim$obs$y, pch = 16, cex = 0.35, col = "grey80",
-     xlab = "x", ylab = "y", main = "Noisy 2D swiss-roll (spiral)")
-
-pal <- colorRampPalette(c("navy", "cyan", "yellow", "red"))(256)
-t_scaled <- (sim$t - min(sim$t)) / (max(sim$t) - min(sim$t))  # in [0,1]
-col_t <- pal[pmax(1, pmin(256, 1 + floor(255 * t_scaled)))]
-points(sim$truth$x, sim$truth$y, pch = 16, cex = 0.25, col = col_t)
-```
-
-To fit the model, we first initialize the smoothEM algorithm using a given initialization method.
-Here, we use `fiedler` initialization and fix the smoothing parameter `lambda` to 10.
-
-```{r}
-set.seed(123)
-fit <- initialize_csmoothEM(
-  X = as.matrix(sim$obs),
-  method = "fiedler",
-  adaptive = FALSE,
-  k = 15,
-  K = 100,
-  lambda = 10
+```{r simulate}
+sim <- simulate_swiss_roll_1d_2d(
+  n = 1000,
+  t_range = c(1.5 * pi, 4.5 * pi),
+  sigma = 0.12,
+  seed = 1
 )
+
+X <- as.matrix(sim$obs)
+t_true <- sim$t
+
+cat("Data dimensions:", nrow(X), "x", ncol(X), "\n")
+```
+
+```{r plot-data, fig.cap="Simulated spiral coloured by true pseudotime."}
+pal <- grDevices::colorRampPalette(
+  c("#1F3A5F", "#2E8A99", "#F2C14E", "#E76F51")
+)(256)
+col_true <- pal[cut(t_true, breaks = 256, labels = FALSE)]
+
+plot(X, col = col_true, pch = 19, cex = 0.55,
+     xlab = "x", ylab = "y",
+     main = "Observed spiral (coloured by true pseudotime)")
+```
+
+### Fitting
+
+The main function is `fit_mpcurve()`. We choose `K = 60` grid points and
+the Fiedler (spectral) initialisation:
+
+```{r fit}
+fit <- fit_mpcurve(
+  X,
+  method = "fiedler",
+  K = 60,
+  iter = 120
+)
+
 fit
 ```
 
-The key function `do_csmoothEM()` runs smooth-EM updates for a given number of iterations.
+### Convergence
 
-```{r}
-fit <- fit |>
-  do_csmoothEM(iter = 1)
+The ELBO should be monotonically non-decreasing:
 
-plot(fit)
+```{r check-elbo}
+stopifnot(all(diff(fit$elbo_trace) >= -1e-8))
 ```
 
-We can also inspect ELBO values over iterations:
-
-```{r}
+```{r plot-elbo, fig.cap="ELBO trace showing monotone convergence."}
 plot(fit, plot_type = "elbo")
 ```
 
-## Adaptive estimation of the smoothing parameter $\lambda$
+### Ordering recovery
 
-Optionally, smoothEMr can update $\lambda$ during the EM iterations. Unlike the MAP updates performed when $\lambda$ is fixed, here we aim to optimize the marginal likelihood
-\[
-\ell(\lambda)=\log p(X\mid \eta,\lambda)=\log\int p(X\mid \mu,\eta)\,p(\mu\mid \lambda)\,d\mu .
-\]
+We can extract a pseudotime estimate from the posterior responsibilities:
+$$
+\hat{t}_i = \sum_{k=1}^K k\, r_{ik}.
+$$
 
-The marginal likelihood is generally intractable. Using the ELBO as a surrogate for $\log p(X\mid \mu,\eta)$ yields an approximate marginal likelihood
-\[
-\widetilde{\ell}(\lambda)
-=\log\int \exp\!\big(\mathrm{ELBO}(q;\mu,\eta)\big)\,p(\mu\mid \lambda)\,d\mu .
-\]
+```{r ordering}
+pseudotime <- as.numeric(fit$gamma %*% seq_len(ncol(fit$gamma)))
+rho <- abs(cor(pseudotime, t_true, method = "spearman"))
 
-Because the ELBO is (locally) quadratic in $\mu$ and the prior $p(\mu\mid \lambda)$ is Gaussian, we can further obtain a closed-form Laplace approximation. Let
-\[
-\widehat{\mu}
-=\arg\max_{\mu}\Big\{\mathrm{ELBO}(q;\mu,\eta)+\log p(\mu\mid \lambda)\Big\},
-\qquad
-H=-\nabla_\mu^2\!\Big[\mathrm{ELBO}(q;\mu,\eta)+\log p(\mu\mid \lambda)\Big]\Big|_{\mu=\widehat{\mu}} .
-\]
-Then the collapsed objective is
-\[
-C(q;\eta,\lambda)
-=\mathrm{ELBO}(q;\widehat{\mu},\eta)+\log p(\widehat{\mu}\mid \lambda)
-+\frac{K}{2}\log(2\pi)-\frac{1}{2}\log|H|.
-\]
+cat("Spearman correlation with true pseudotime:", round(rho, 4), "\n")
+```
 
-To implement adaptive estimation of $\lambda$, we just need to use `adaptive = "ml"` in the initialization step.
+```{r plot-ordering, fig.cap="True pseudotime (left) vs inferred pseudotime (right)."}
+col_fit <- pal[cut(pseudotime, breaks = 256, labels = FALSE)]
 
-```{r}
-set.seed(123)
-fit_ml <- initialize_csmoothEM(
-  X = as.matrix(sim$obs),
-  method = "fiedler",
-  adaptive = "ml"
+op <- par(mfrow = c(1, 2), mar = c(4, 4, 2.5, 1))
+plot(X, col = col_true, pch = 19, cex = 0.5,
+     xlab = "x", ylab = "y", main = "Truth")
+plot(X, col = col_fit, pch = 19, cex = 0.5,
+     xlab = "x", ylab = "y", main = "CAVI fit")
+par(op)
+```
+
+### Inferred trajectories
+
+The posterior mean trajectories $m_j$ show how each feature changes along the
+ordering:
+
+```{r plot-mu, fig.cap="Posterior mean trajectories for each feature across the K grid points."}
+plot(fit, plot_type = "mu")
+```
+
+## Key parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `K` | `min(50, floor(n/5))` | Number of grid points along the trajectory |
+| `method` | `"PCA"` | Initialisation ordering: `"PCA"`, `"fiedler"`, `"isomap"`, `"tSNE"`, `"pcurve"`, `"random"` |
+| `rw_q` | `2` | Random-walk order for the GMRF prior (1 = piecewise linear, 2 = piecewise cubic) |
+| `iter` | `100` | Maximum number of CAVI sweeps |
+| `lambda` | `1` | Initial value for the smoothness parameters $\lambda_j$ |
+
+### Fixing lambda
+
+By default, the smoothness parameter $\lambda_j$ is estimated for each
+feature via the variational update. You can fix it at a constant value using
+`do_mpcurve()`:
+
+```{r fix-lambda, eval=FALSE}
+# Continue fitting with lambda fixed at 10
+fit_fixed <- do_mpcurve(fit, iter = 50, lambda = 10)
+```
+
+Or restrict the optimisation range:
+
+```{r bound-lambda, eval=FALSE}
+# Allow lambda to optimise within [1, 100]
+fit_bounded <- do_mpcurve(fit, iter = 50, lambda_min = 1, lambda_max = 100)
+```
+
+## Initialisation
+
+The choice of initialisation method can matter, especially for complex
+geometries. You can compare multiple initialisations in parallel:
+
+```{r parallel-init, eval=FALSE}
+fits <- fit_mpcurve(
+  X,
+  method = c("PCA", "fiedler", "isomap"),
+  K = 60,
+  iter = 100,
+  num_cores = 3
 )
-fit_ml
+
+# Compare final ELBO values
+attr(fits, "summary")
 ```
 
-```{r}
-fit_ml <- fit_ml |>
-  do_csmoothEM(iter = 30)
+**Rules of thumb:**
 
-plot(fit_ml)
+- `"PCA"` works well when the underlying trajectory is roughly linear.
+- `"fiedler"` (spectral ordering) is a good default for moderate non-linearity.
+- `"isomap"` can be better for strongly curved manifolds.
+
+## Continuing a fit
+
+Use `do_mpcurve()` to run additional iterations on an existing fit:
+
+```{r continue, eval=FALSE}
+fit <- do_mpcurve(fit, iter = 50)
 ```
 
-```{r}
-plot(fit_ml, plot_type = "elbo")
-```
+This preserves and extends all traces (`elbo_trace`, `loglik_trace`,
+`lambda_trace`, etc.), so you can monitor convergence incrementally.
+
+## Summary
+
+- `fit_mpcurve()` is the main entry point.
+- The CAVI algorithm maintains full posterior uncertainty over feature
+  trajectories, with a monotone ELBO guarantee.
+- Use `plot()` to visualise scatterplots, ELBO traces, and trajectory
+  profiles.
+- Use `do_mpcurve()` to continue fitting, fix lambda, or restrict parameter
+  bounds.
+- For dual-ordering / feature partition problems, see `vignette("partition")`.

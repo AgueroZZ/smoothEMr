@@ -12,7 +12,7 @@ do_csmoothEM(
   adaptive = NULL,
   lambda_min = NULL,
   lambda_max = NULL,
-  sigma_update = c("mstep", "ml"),
+  sigma_update = c("ml", "mstep"),
   sigma_min = 1e-10,
   sigma_max = 1e+10,
   verbose = FALSE
@@ -31,18 +31,20 @@ do_csmoothEM(
 \describe{
   \item{\code{NULL}}{Inherit \code{object$control$adaptive}.}
   \item{\code{"none"}}{No adaptive update (fixed \code{lambda_vec}).}
-  \item{\code{"prior"}}{Prior-based update for \eqn{\lambda_j} using the current M-step \eqn{\mu}.}
+  \item{\code{"prior"}}{Obsolete. Retained only for backward compatibility; updates
+    \eqn{\lambda_j} from the current M-step \eqn{\mu} via a prior/profile rule and
+    should not be used for convergence claims.}
   \item{\code{"ml"}}{Collapsed-ML update for \eqn{\lambda_j} (dispatches to
     \code{\link{do_csmoothEM_ml_collapsed}}).}
 }
-A logical value is accepted for backward compatibility: \code{TRUE} is treated as
-\code{"prior"} and \code{FALSE} as \code{"none"}.}
+Logical values are accepted for backward compatibility: \code{TRUE} is interpreted as
+\code{"ml"} and \code{FALSE} as \code{"none"}.}
 
 \item{lambda_min, lambda_max}{Positive bounds used for adaptive \eqn{\lambda} updates.}
 
 \item{sigma_update}{Character. Only used when \code{adaptive="ml"} (i.e., in the
-collapsed-ML path). Either \code{"mstep"} or \code{"ml"}; see
-\code{\link{do_csmoothEM_ml_collapsed}}.}
+collapsed-ML path). Defaults to \code{"ml"}; \code{"mstep"} is retained only
+for backward compatibility; see \code{\link{do_csmoothEM_ml_collapsed}}.}
 
 \item{sigma_min, sigma_max}{Positive bounds for \code{sigma2} when \code{adaptive="ml"}
 and \code{sigma_update="ml"}.}

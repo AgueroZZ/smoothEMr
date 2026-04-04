@@ -1,0 +1,334 @@
+---
+title: "Getting Started with MPCurver CAVI"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Getting Started with MPCurver CAVI}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r load}
+library(MPCurver)
+set.seed(42)
+```
+
+`MPCurver` now uses `cavi` as the recommended default fitting backend.
+This vignette introduces the statistical model, the variational algorithm, and
+then walks through a larger but still easy spiral example.
+
+The legacy `csmooth_em` pipeline remains available only through lower-level
+compatibility functions and is no longer part of the public wrapper workflow.
+
+## 1  Statistical model
+
+We observe a data matrix
+\[
+X = (x_{ij}) \in \mathbb{R}^{n \times d},
+\]
+where row \(i\) is one cell and column \(j\) is one feature.
+
+The single-ordering MPCurve model assumes:
+
+1. each cell has a latent position
+   \[
+   c_i \in \{1,\dots,K\},
+   \]
+2. each feature has a smooth trajectory over the \(K\) ordered components,
+   written as
+   \[
+   u_j = (u_{j1},\dots,u_{jK})^\top \in \mathbb{R}^K,
+   \]
+3. observations follow a Gaussian likelihood
+   \[
+   x_{ij} \mid c_i = k, u_j, \sigma_j^2 \sim N(u_{jk}, \sigma_j^2),
+   \]
+4. and each trajectory is regularized by a Gaussian Markov random field prior
+   along the component axis:
+   \[
+   u_j \sim N\!\left(0, (\lambda_j Q_K)^{-1}\right),
+   \]
+   where \(Q_K\) is the random-walk precision matrix on the \(K\) bins.
+
+In the current `cavi` implementation:
+
+- `sigma_j^2` is feature-specific,
+- `lambda_j` is feature-specific,
+- the covariance model is homoskedastic across components,
+- and the posterior is approximated with a mean-field family
+  \[
+  q(C,U) = \prod_{i=1}^n q_i(c_i)\prod_{j=1}^d q_j(u_j).
+  \]
+
+## 2  Variational algorithm
+
+The `cavi()` routine performs coordinate-ascent variational inference on an
+explicit ELBO. Write
+\[
+r_{ik} := q_i(c_i = k),
+\qquad
+N_k := \sum_{i=1}^n r_{ik},
+\]
+and for each feature \(j\),
+\[
+q_j(u_j) = N(m_j, S_j).
+\]
+
+Under the mean-field family
+\[
+q(C,U)=\prod_{i=1}^n q_i(c_i)\prod_{j=1}^d q_j(u_j),
+\]
+the ELBO can be written, up to additive constants, as
+\[
+\mathcal L(q)
+ =
+\sum_{i=1}^n\sum_{k=1}^K r_{ik}\log \pi_k
+- \sum_{i=1}^n\sum_{k=1}^K r_{ik}\log r_{ik}
+\]
+\[
+- \frac12 \sum_{i=1}^n\sum_{k=1}^K\sum_{j=1}^d
+r_{ik}
+\left[
+\log(2\pi \sigma_j^2)
++
+\frac{(x_{ij}-m_{jk})^2 + S_{j,kk}}{\sigma_j^2}
+\right]
+\]
+\[
++ \frac12 \sum_{j=1}^d
+\left[
+\operatorname{rank}(Q_K)\log \lambda_j
+- \lambda_j\Big(m_j^\top Q_K m_j + \operatorname{tr}(Q_K S_j)\Big)
++ \log |S_j|
+\right].
+\]
+
+This is the quantity recorded in `elbo_trace`. The updates used in `cavi()`
+are obtained by maximizing this ELBO one block at a time.
+
+### 2.1  Update for \(q(u_j)\)
+
+Fix \(r_{ik}\), \(\sigma_j^2\), and \(\lambda_j\). The ELBO terms involving
+\(u_j\) are quadratic, so the optimal variational factor is Gaussian:
+\[
+\log q_j^\star(u_j)
+=
+-\frac12 u_j^\top A_j u_j + u_j^\top b_j + \text{const},
+\]
+where
+\[
+A_j
+=
+\lambda_j Q_K +
+\operatorname{diag}\!\left(N_1/\sigma_j^2,\dots,N_K/\sigma_j^2\right),
+\]
+and
+\[
+b_{jk}
+=
+\frac{1}{\sigma_j^2}\sum_{i=1}^n r_{ik} x_{ij}.
+\]
+Therefore,
+\[
+S_j = A_j^{-1},
+\qquad
+m_j = S_j b_j.
+\]
+
+This is exactly the linear-algebra step implemented in `cavi()`.
+
+### 2.2  Update for \(q(c_i)\)
+
+Fix \(q(U)\), \(\pi\), and \(\sigma_j^2\). Collecting the ELBO terms involving
+the row \(r_{i\cdot}\) gives
+\[
+\log r_{ik}
+\propto
+\log \pi_k
+- \frac12 \sum_{j=1}^d
+\left[
+\log(2\pi \sigma_j^2)
++
+\frac{(x_{ij}-m_{jk})^2 + S_{j,kk}}{\sigma_j^2}
+\right].
+\]
+So the cell-position posterior is updated by a row-wise softmax:
+\[
+r_{i\cdot} \leftarrow \operatorname{softmax}\!\big(\ell_{i1},\dots,\ell_{iK}\big),
+\]
+with \(\ell_{ik}\) equal to the right-hand side above.
+
+The extra \(S_{j,kk}\) term is the uncertainty correction that distinguishes
+this update from a pure plug-in EM step.
+
+### 2.3  Update for \(\pi_k\)
+
+Fixing everything else, we maximize
+\[
+\sum_{k=1}^K N_k \log \pi_k
+\]
+subject to \(\sum_k \pi_k = 1\). A Lagrange multiplier gives
+\[
+\pi_k = \frac{N_k}{n}.
+\]
+
+### 2.4  Update for \(\sigma_j^2\)
+
+Fixing \(q(U)\) and \(q(C)\), differentiate the ELBO with respect to
+\(\sigma_j^2\). The stationary point is
+\[
+\sigma_j^2
+=
+\frac{1}{n}
+\sum_{i=1}^n \sum_{k=1}^K
+r_{ik}\Big[(x_{ij}-m_{jk})^2 + S_{j,kk}\Big].
+\]
+
+So each feature variance is updated from the posterior expected residual sum of
+squares.
+
+### 2.5  Update for \(\lambda_j\)
+
+Fixing \(q(U)\), only the prior part of the ELBO depends on \(\lambda_j\):
+\[
+\frac12 \operatorname{rank}(Q_K)\log \lambda_j
+- \frac12 \lambda_j
+\Big(m_j^\top Q_K m_j + \operatorname{tr}(Q_K S_j)\Big).
+\]
+Setting the derivative to zero yields
+\[
+\lambda_j
+=
+\frac{\operatorname{rank}(Q_K)}
+{m_j^\top Q_K m_j + \operatorname{tr}(Q_K S_j)}.
+\]
+
+### 2.6  Why the ELBO is monotone here
+
+Each of the five updates above is the exact optimizer of one ELBO block while
+holding the others fixed. That is why the current `cavi` implementation has a
+clean monotonicity story: the recorded `elbo_trace` should be nondecreasing up
+to numerical tolerance.
+
+## 3  Simulated spiral example
+
+We use a larger and more stable spiral than the older vignette examples:
+
+- `n = 1000` cells,
+- a shorter latent range `t in [1.5*pi, 4.5*pi]`,
+- lower noise,
+- and a finer mixture grid `K = 60`.
+
+```{r simulate}
+sim <- simulate_swiss_roll_1d_2d(
+  n = 1000,
+  t_range = c(1.5 * pi, 4.5 * pi),
+  sigma = 0.12,
+  seed = 1
+)
+
+X <- as.matrix(sim$obs)
+t_true <- sim$t
+
+cat("Data dimensions:", nrow(X), "x", ncol(X), "\n")
+cat("t range:", round(range(t_true), 3), "\n")
+```
+
+```{r plot-data, fig.cap="Shorter spiral used in the introductory CAVI example."}
+pal <- grDevices::colorRampPalette(
+  c("#1F3A5F", "#2E8A99", "#F2C14E", "#E76F51")
+)(256)
+col_true <- pal[cut(t_true, breaks = 256, labels = FALSE)]
+
+plot(X, col = col_true, pch = 19, cex = 0.55,
+     xlab = "x", ylab = "y",
+     main = "Observed spiral, coloured by true pseudotime")
+```
+
+## 4  Fit the default `cavi` backend
+
+```{r fit-cavi}
+fit <- fit_mpcurve(
+  X,
+  method = "fiedler",
+  K = 60,
+  iter = 120
+)
+
+stopifnot(inherits(fit, "mpcurve"))
+stopifnot(identical(fit$algorithm, "cavi"))
+
+fit
+```
+
+```{r summary-fit}
+summary(fit)
+```
+
+## 5  Check convergence and recovery
+
+The default `cavi` fit should have a nondecreasing ELBO trace.
+
+```{r check-elbo}
+stopifnot(all(diff(fit$elbo_trace) >= -1e-8))
+cat("ELBO monotone:", TRUE, "\n")
+cat("ELBO range:", round(range(fit$elbo_trace), 3), "\n")
+```
+
+We can also compare the inferred ordering to the true latent parameter using
+the posterior-mean component index
+\[
+\hat t_i = \sum_{k=1}^K k \, r_{ik}.
+\]
+
+```{r ordering-recovery}
+pseudotime_hat <- as.numeric(fit$gamma %*% seq_len(ncol(fit$gamma)))
+rho_t <- abs(cor(pseudotime_hat, t_true, method = "spearman"))
+
+cat("Absolute Spearman correlation with true t:", round(rho_t, 4), "\n")
+```
+
+## 6  Visualize the fitted ordering
+
+```{r plot-fit, fig.cap="True pseudotime (left) and inferred CAVI pseudotime (right)."}
+col_fit <- pal[cut(pseudotime_hat, breaks = 256, labels = FALSE)]
+
+op <- par(mfrow = c(1, 2), mar = c(4, 4, 2.5, 1))
+plot(X, col = col_true, pch = 19, cex = 0.5,
+     xlab = "x", ylab = "y", main = "Truth")
+plot(X, col = col_fit, pch = 19, cex = 0.5,
+     xlab = "x", ylab = "y", main = "CAVI fit")
+par(op)
+```
+
+The built-in `mpcurve` plotting methods still work on top of the default `cavi`
+backend.
+
+```{r plot-trace, fig.cap="CAVI trace plot from the fitted mpcurve object."}
+plot(fit, plot_type = "elbo")
+```
+
+```{r plot-mu, fig.cap="Posterior mean trajectories across the K bins."}
+plot(fit, plot_type = "mu")
+```
+
+## 7  Takeaway
+
+For this easier spiral regime, `cavi` is:
+
+- fast enough to use as the default frontend algorithm,
+- explicit about its optimization target through the ELBO,
+- and able to recover the ordering very accurately on a moderately large
+  example with a fairly fine grid.

@@ -34,6 +34,56 @@ plot_coordinate_change(
   label_points = FALSE
 )
 }
+\arguments{
+\item{mu_full_history}{List of kriged mean matrices.}
+
+\item{u_final}{Final grid locations.}
+
+\item{coord}{Coordinate index to plot.}
+
+\item{history_i}{First history index.}
+
+\item{history_j}{Second history index.}
+
+\item{type}{One of \code{"both"}, \code{"overlay"}, or \code{"diff"}.}
+
+\item{highlight}{Which history's observed locations to highlight.}
+
+\item{highlight_u}{Optional explicit locations to highlight.}
+
+\item{res}{Optional \code{progressive_smoothEM()} result used to recover
+observed design locations.}
+
+\item{main}{Plot title.}
+
+\item{xlab}{X-axis label.}
+
+\item{ylab_overlay}{Y-axis label for the overlay plot.}
+
+\item{ylab_diff}{Y-axis label for the difference plot.}
+
+\item{lty_i, lty_j, lty_diff}{Line types for history i, history j, and the
+difference curve.}
+
+\item{pch_i, pch_j, pch_diff}{Point characters for highlighted locations.}
+
+\item{cex_pts}{Point expansion for highlighted locations.}
+
+\item{add_zero_line}{Logical; add a horizontal zero line on the difference plot?}
+
+\item{legend_loc}{Legend location.}
+
+\item{bty}{Legend box type.}
+
+\item{ylim_overlay}{Optional y-limits for the overlay panel.}
+
+\item{pad_ylim}{Fractional padding applied when computing overlay y-limits.}
+
+\item{include_highlight_in_ylim}{Logical; should highlighted points affect the
+computed overlay y-limits?}
+
+\item{label_points}{Logical; label highlighted points by grid index?}
+}
 \description{
 Plot change in a single coordinate between two histories
 }

@@ -4,7 +4,7 @@
 \alias{PCA_ordering}
 \title{PCA ordering (PC1)}
 \usage{
-PCA_ordering(X, center = TRUE, scale = FALSE, scale01 = TRUE)
+PCA_ordering(X, center = TRUE, scale = FALSE, scale01 = TRUE, component = 1L)
 }
 \arguments{
 \item{X}{numeric matrix (n x D).}
@@ -14,6 +14,9 @@ PCA_ordering(X, center = TRUE, scale = FALSE, scale01 = TRUE)
 \item{scale}{logical.}
 
 \item{scale01}{logical; if TRUE, rescale returned t to [0,1].}
+
+\item{component}{Integer principal-component index to use as the ordering
+score. Defaults to 1.}
 }
 \value{
 list(t, keep_idx)

@@ -9,7 +9,7 @@ greedy_backward_filter_csmooth(
   method = c("fiedler", "PCA", "tSNE", "pcurve", "random"),
   K = 50,
   modelName = c("homoskedastic", "heteroskedastic"),
-  adaptive = "prior",
+  adaptive = "ml",
   num_iter_init = 10,
   num_iter_refit = 5,
   discretization = c("equal", "quantile", "kmeans"),
@@ -32,7 +32,8 @@ greedy_backward_filter_csmooth(
 \item{modelName}{Either \code{"homoskedastic"} or \code{"heteroskedastic"}.}
 
 \item{adaptive}{Adaptive mode passed to \code{\link{do_csmoothEM}} when refitting.
-Typically \code{"prior"} for speed (or \code{"ml"} if using collapsed-ML).}
+\code{"ml"} is the recommended default. \code{"prior"} is obsolete and retained
+only for backward compatibility.}
 
 \item{num_iter_init}{Integer \eqn{\ge 1}. Number of warm-start iterations for the initial fit.}
 

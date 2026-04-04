@@ -1,7 +1,7 @@
-Package: smoothEMr
+Package: MPCurver
 Type: Package
-Title: Efficient Implementation of SmoothEM in R
-Version: 0.1.1
+Title: Fit and Explore MPCurve Trajectory Models in R
+Version: 0.2.0
 Authors@R: c(
     person(
       "Ziang", "Zhang",
@@ -9,14 +9,35 @@ Authors@R: c(
       role = c("aut", "cre")
     )
   )
-Description: A R package that performs SmoothEM using various priors and initializations.
+Description: Implements the MPCurve statistical model for trajectory and
+    pseudotime inference via Gaussian mixture models with Gaussian Markov
+    random field priors on smooth latent trajectories. Provides a
+    mean-field coordinate-ascent variational backend ('cavi') that is the
+    recommended public workflow. Legacy MAP/EM backends ('csmooth_em' and
+    'smooth_em') are retained only as lower-level compatibility helpers.
+    Also includes a unified 'fit_mpcurve()' interface, dual-ordering
+    partition tools, multiple initialization methods, and theory-facing
+    documentation for the CAVI path.
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
 Imports:
-    mclust
+    igraph,
+    MASS,
+    Matrix,
+    princurve,
+    RANN,
+    RSpectra,
+    Rtsne,
+    matrixStats,
+    mclust,
+    parallel
 RoxygenNote: 7.3.3
-Suggests: 
+Suggests:
+    devtools,
+    fields,
     knitr,
-    rmarkdown
+    rmarkdown,
+    testthat (>= 3.0.0)
 VignetteBuilder: knitr
+Config/testthat/edition: 3

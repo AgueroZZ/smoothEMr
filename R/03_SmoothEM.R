@@ -82,7 +82,7 @@
 # =========================
 
 #' @keywords internal
-#' @rdname EM_algorithm
+#' @noRd
 compute_log_joint_observed <- function(X, params,
                                        Q_prior = NULL,
                                        eigen_tol = NULL,
@@ -120,7 +120,7 @@ compute_log_joint_observed <- function(X, params,
     r  <- as.integer(DK - (rank_deficiency %||% 0L))
     r  <- max(r, 1L)
 
-    # logdet(λQb)=logdet(Qb)+r log λ
+    # logdet(lambda * Qb) = logdet(Qb) + r log(lambda)
     return(loglik - 0.5 * lambda * quad + 0.5 * (logdetQb + r * log(lambda)))
   }
 
@@ -128,7 +128,7 @@ compute_log_joint_observed <- function(X, params,
 }
 
 #' @keywords internal
-#' @rdname EM_algorithm
+#' @noRd
 compute_penalized_ELBO <- function(X, Gamma, params,
                                    Q_prior = NULL,
                                    eigen_tol = NULL,
@@ -195,7 +195,7 @@ compute_penalized_ELBO <- function(X, Gamma, params,
 #' @return Numeric matrix \code{(n x K)} of responsibilities.
 #'
 #' @keywords internal
-#' @rdname EM_algorithm
+#' @noRd
 ESTEP <- function(data, params) {
   n <- nrow(data)
   K <- length(params$pi)
@@ -241,7 +241,7 @@ ESTEP <- function(data, params) {
 #' @return List with updated \code{pi}, \code{mu}, \code{sigma}.
 #'
 #' @keywords internal
-#' @rdname EM_algorithm
+#' @noRd
 MSTEP <- function(
     data, gamma, params, Q_prior = NULL,
     relative_lambda = FALSE,
@@ -414,7 +414,7 @@ MSTEP <- function(
     sigma_diff <- max(abs(sigma_new_vec - sigma_old_vec))
 
     if (verbose) {
-      cat(sprintf("  MSTEP inner iter %d: Δμ=%.3e, ΔΣ=%.3e\n", inner, mu_diff, sigma_diff))
+      cat(sprintf("  MSTEP inner iter %d: dmu=%.3e, dSigma=%.3e\n", inner, mu_diff, sigma_diff))
     }
     if (max(mu_diff, sigma_diff) < tol_inner) break
   }
@@ -426,7 +426,7 @@ MSTEP <- function(
 # EM wrapper (exported)
 # =========================
 
-#' Penalized Expectation–Maximization (EM) algorithm for SmoothEM
+#' Penalized Expectation-Maximization (EM) algorithm for SmoothEM
 #'
 #' @description
 #' Fits a Gaussian mixture model with optional quadratic prior penalty on the stacked
@@ -839,7 +839,6 @@ do_smoothEM <- function(object,
   object$prior$lambda <- lambda
   object
 }
-
 
 
 

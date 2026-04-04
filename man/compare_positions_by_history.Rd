@@ -13,6 +13,17 @@ compare_positions_by_history(
   main = NULL
 )
 }
+\arguments{
+\item{res}{Result returned by \code{progressive_smoothEM()}.}
+
+\item{h1, h2}{History indices to compare.}
+
+\item{type}{Position summary to compare: posterior mean or MAP.}
+
+\item{add_identity}{Logical; draw the identity line?}
+
+\item{main}{Optional plot title.}
+}
 \description{
 Compare posterior position summaries across two histories
 }

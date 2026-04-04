@@ -171,7 +171,7 @@ score_features_onefit <- function(fit, X = NULL, include_constant = TRUE) {
 #' @param include_constant Logical; passed to score_features_onefit().
 #'
 #' @return A list with
-#'   - assign: length-d character vector in {"A","B"}
+#'   - assign: length-d character vector taking values \code{"A"} or \code{"B"}
 #'   - score_diff: length-d vector (CA - CB)
 #'   - CA, CB: length-d vectors of per-feature scores
 #' @export
@@ -240,6 +240,8 @@ subset_csmooth_em_fit <- function(fit, keep_cols) {
       fit$params$sigma2 <- as.numeric(fit$params$sigma2)[keep_cols]
     }
   }
+  fit$params$invsig2 <- NULL
+  fit$params$logdet <- NULL
 
   # subset lambda_vec
   if (!is.null(fit$prior$lambda_vec)) {
@@ -281,7 +283,8 @@ subset_csmooth_em_fit <- function(fit, keep_cols) {
 #' @param K Integer \eqn{\ge 2}. Number of mixture components.
 #' @param modelName Either \code{"homoskedastic"} or \code{"heteroskedastic"}.
 #' @param adaptive Adaptive mode passed to \code{\link{do_csmoothEM}} when refitting.
-#'   Typically \code{"prior"} for speed (or \code{"ml"} if using collapsed-ML).
+#'   \code{"ml"} is the recommended default. \code{"prior"} is obsolete and retained
+#'   only for backward compatibility.
 #' @param num_iter_init Integer \eqn{\ge 1}. Number of warm-start iterations for the initial fit.
 #' @param num_iter_refit Integer \eqn{\ge 1}. Number of iterations for each refit after feature removal.
 #' @param discretization Discretization method for initialization passed to \code{initialize_csmoothEM}.
@@ -307,7 +310,7 @@ greedy_backward_filter_csmooth <- function(
     method = c("fiedler", "PCA", "tSNE", "pcurve", "random"),
     K = 50,
     modelName = c("homoskedastic", "heteroskedastic"),
-    adaptive = "prior",
+    adaptive = "ml",
     num_iter_init = 10,
     num_iter_refit = 5,
     discretization = c("equal", "quantile", "kmeans"),
@@ -326,6 +329,11 @@ greedy_backward_filter_csmooth <- function(
   method <- match.arg(method)
   modelName <- match.arg(modelName)
   discretization <- match.arg(discretization)
+  adaptive <- .normalize_csmooth_adaptive(
+    adaptive = adaptive,
+    default = "ml",
+    caller = "greedy_backward_filter_csmooth()"
+  )
 
   batch <- as.integer(batch)
   if (length(batch) != 1L || is.na(batch) || batch < 1L) stop("batch must be a single integer >= 1.")
@@ -464,6 +472,8 @@ append_coord_to_params_csmooth <- function(params, one) {
 
   params$mu <- lapply(seq_len(K), function(k) c(params$mu[[k]], one$mu_vec[k]))
   params$sigma2 <- c(as.numeric(params$sigma2), as.numeric(one$sigma2))
+  params$invsig2 <- NULL
+  params$logdet <- NULL
   params
 }
 
@@ -810,7 +820,15 @@ score_one_coord_csmooth <- function(
 #'   \item \code{seeds}: list with \code{j1}, \code{j2}.
 #' }
 #'
-#' @seealso \code{\link{do_csmoothEM}}, \code{\link{score_feature_given_Gamma}}, \code{\link{compute_C_by_coord_csmooth}}
+#' @details
+#' This is the legacy \code{csmooth_em}-based hard-partition routine. It is
+#' retained for benchmark comparison and internal regression testing. For new
+#' work, prefer \code{\link{fit_mpcurve}} with the soft-CAVI partition path and
+#' optional greedy dimension selection.
+#'
+#' @seealso \code{\link{fit_mpcurve}}, \code{\link{do_csmoothEM}},
+#'   \code{\link{score_feature_given_Gamma}},
+#'   \code{\link{compute_C_by_coord_csmooth}}
 #' @export
 forward_two_ordering_partition_csmooth <- function(
     X,
@@ -1073,7 +1091,7 @@ forward_two_ordering_partition_csmooth <- function(
         Nk <- pmax(colSums(Gamma1), 1e-8); params1$pi <- Nk / sum(Nk)
       }
 
-      if (v >= 1) cat(sprintf("[Greedy-csmooth] pick %d -> ord1 (|Δ|=%.3f), remaining=%d\n",
+      if (v >= 1) cat(sprintf("[Greedy-csmooth] pick %d -> ord1 (|d|=%.3f), remaining=%d\n",
                               j_star, abs(gap_star), length(remaining) - 1))
     } else {
       params2 <- append_coord_to_params_csmooth(params2, s2_star$one)
@@ -1106,7 +1124,7 @@ forward_two_ordering_partition_csmooth <- function(
         Nk <- pmax(colSums(Gamma2), 1e-8); params2$pi <- Nk / sum(Nk)
       }
 
-      if (v >= 1) cat(sprintf("[Greedy-csmooth] pick %d -> ord2 (|Δ|=%.3f), remaining=%d\n",
+      if (v >= 1) cat(sprintf("[Greedy-csmooth] pick %d -> ord2 (|d|=%.3f), remaining=%d\n",
                               j_star, abs(gap_star), length(remaining) - 1))
     }
 
@@ -1199,6 +1217,8 @@ drop_coord_from_params_csmooth <- function(params, pos) {
   s2 <- as.numeric(params$sigma2)
   if (pos > length(s2)) stop("pos out of range for params$sigma2.")
   params$sigma2 <- s2[-pos]
+  params$invsig2 <- NULL
+  params$logdet <- NULL
 
   params
 }
@@ -1303,6 +1323,8 @@ append_coord_to_fit_csmooth <- function(fit, xj,
   K <- length(fit$params$pi)
   fit$params$mu <- lapply(seq_len(K), function(k) c(fit$params$mu[[k]], sc$mu_vec[k]))
   fit$params$sigma2 <- c(as.numeric(fit$params$sigma2), as.numeric(sc$sigma2))
+  fit$params$invsig2 <- NULL
+  fit$params$logdet <- NULL
 
   # append lambda=1 (warm-start); adaptive updates can change it later
   fit$prior$lambda_vec <- c(as.numeric(fit$prior$lambda_vec), 1)
@@ -1355,8 +1377,18 @@ append_coord_to_fit_csmooth <- function(fit, xj,
 #'   \item \code{history}: data.frame of moves (feature, gain, sizes).
 #' }
 #'
-#' @seealso \code{\link{initialize_csmoothEM}}, \code{\link{do_csmoothEM}}, \code{\link{score_feature_given_Gamma}},
-#'   \code{\link{append_coord_to_fit_csmooth}}, \code{\link{drop_coord_from_fit_csmooth}}
+#' @details
+#' This is the legacy \code{csmooth_em}-based backward partition routine. It is
+#' retained mainly for benchmark comparison and internal testing against the
+#' newer variational pipeline. For user-facing analyses, prefer
+#' \code{\link{fit_mpcurve}} with the soft-CAVI partition path and optional
+#' greedy dimension selection.
+#'
+#' @seealso \code{\link{fit_mpcurve}}, \code{\link{initialize_csmoothEM}},
+#'   \code{\link{do_csmoothEM}},
+#'   \code{\link{score_feature_given_Gamma}},
+#'   \code{\link{append_coord_to_fit_csmooth}},
+#'   \code{\link{drop_coord_from_fit_csmooth}}
 #' @export
 backward_two_ordering_partition_csmooth <- function(
     X,

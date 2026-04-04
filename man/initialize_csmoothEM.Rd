@@ -58,17 +58,19 @@ coordinate-specific variance scale (see Details).}
 \item{adaptive}{Character specifying how to initialize/update \code{lambda_vec}:
 \describe{
   \item{\code{"none"}}{Do not estimate \code{lambda_vec} from the initialization; use \code{lambda}.}
-  \item{\code{"prior"}}{Prior-based estimate using the initialized component means \eqn{\mu}.}
+  \item{\code{"prior"}}{Obsolete. Retained only for backward compatibility; uses a
+    prior/profile estimate from the initialized component means \eqn{\mu}.}
   \item{\code{"ml"}}{Collapsed-ML warm start (dispatches to \code{do_csmoothEM_ml_collapsed()} inside
     \code{do_csmoothEM()}), allowing optional ML updates of \eqn{\sigma^2}.}
 }
-Logical values are accepted for backward compatibility: \code{TRUE} is treated as \code{"prior"}
-and \code{FALSE} as \code{"none"}.}
+Logical values are accepted for backward compatibility: \code{TRUE} is interpreted as
+\code{"ml"} and \code{FALSE} as \code{"none"}.}
 
 \item{lambda_min, lambda_max}{Positive bounds for \code{lambda_vec} (used when \code{adaptive!="none"}).}
 
 \item{sigma_update}{Character. Only used when \code{adaptive="ml"} during the warm start.
-Either \code{"mstep"} or \code{"ml"}; see \code{\link{do_csmoothEM_ml_collapsed}}.}
+Defaults to \code{"ml"}; legacy \code{"mstep"} is retained only for backward compatibility.
+See \code{\link{do_csmoothEM_ml_collapsed}}.}
 
 \item{sigma_min, sigma_max}{Positive bounds for \code{sigma2} when \code{adaptive="ml"} and
 \code{sigma_update="ml"}.}
@@ -101,12 +103,13 @@ Let \eqn{Q_K} denote the RW(q) precision along components. For a separable prior
 \eqn{Q_{\mathrm{full}} = I_d \otimes Q_K}, the rank deficiency is \eqn{rw_q} per coordinate,
 so a convenient degrees-of-freedom term is \eqn{r = K - rw_q}.
 
-When \code{adaptive = "prior"}, the initializer estimates each coordinate penalty by:
+When \code{adaptive = "prior"} (obsolete), the initializer estimates each coordinate penalty by:
 \deqn{\lambda_j = r \big/ \left( \mu_{j\cdot}^\top Q_{j,\mathrm{base}} \mu_{j\cdot} \right),}
 where \eqn{\mu_{j\cdot}} is the length-K vector of component means for coordinate \eqn{j}, and
 \eqn{Q_{j,\mathrm{base}}} is the coordinate-specific base precision returned by
 \code{.compute_Qbase_j()} (equivalently, \eqn{Q_K} possibly rescaled when
 \code{relative_lambda = TRUE}). The estimate is clamped to \eqn{[\text{lambda_min},\text{lambda_max}]}.
+This mode is heuristic and should not be treated as a convergence-guaranteed update.
 
 When \code{adaptive = "ml"}, the warm start uses the collapsed-ML routine. In this mode,
 \code{do_csmoothEM()} dispatches to \code{do_csmoothEM_ml_collapsed()}, which optimizes a

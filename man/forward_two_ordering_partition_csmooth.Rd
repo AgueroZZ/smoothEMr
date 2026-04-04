@@ -119,6 +119,14 @@ Scoring:
   \item \code{score_mode="ml"} uses a collapsed (marginal-like) score with \eqn{\lambda} optimized per feature.
 }
 }
+\details{
+This is the legacy \code{csmooth_em}-based hard-partition routine. It is
+retained for benchmark comparison and internal regression testing. For new
+work, prefer \code{\link{fit_mpcurve}} with the soft-CAVI partition path and
+optional greedy dimension selection.
+}
 \seealso{
-\code{\link{do_csmoothEM}}, \code{\link{score_feature_given_Gamma}}, \code{\link{compute_C_by_coord_csmooth}}
+\code{\link{fit_mpcurve}}, \code{\link{do_csmoothEM}},
+  \code{\link{score_feature_given_Gamma}},
+  \code{\link{compute_C_by_coord_csmooth}}
 }

@@ -413,9 +413,17 @@ progressive_smoothEM <- function(
 #' @param history_i Which history element to plot.
 #' @param coords Which coordinates (columns) to plot.
 #' @param main Plot title.
+#' @param xlab X-axis label.
+#' @param ylab Y-axis label.
+#' @param lty Line type for the kriged mean curves.
 #' @param add_points Overlay observed means at design points.
 #' @param u_obs,mu_obs_list Optional overrides for points.
 #' @param res Optional progressive_smoothEM() result used to auto-fill points/title.
+#' @param pch Point character for observed means.
+#' @param cex Point expansion for observed means.
+#' @param legend_loc Legend location.
+#' @param legend_prefix Prefix for coordinate labels in the legend.
+#' @param bty Legend box type.
 #' @return Invisibly returns a list with plot inputs.
 #' @export
 plot_mu_history <- function(mu_full_history,
@@ -495,6 +503,32 @@ plot_mu_history <- function(mu_full_history,
 
 #' Plot change in a single coordinate between two histories
 #'
+#' @param mu_full_history List of kriged mean matrices.
+#' @param u_final Final grid locations.
+#' @param coord Coordinate index to plot.
+#' @param history_i First history index.
+#' @param history_j Second history index.
+#' @param type One of \code{"both"}, \code{"overlay"}, or \code{"diff"}.
+#' @param highlight Which history's observed locations to highlight.
+#' @param highlight_u Optional explicit locations to highlight.
+#' @param res Optional \code{progressive_smoothEM()} result used to recover
+#'   observed design locations.
+#' @param main Plot title.
+#' @param xlab X-axis label.
+#' @param ylab_overlay Y-axis label for the overlay plot.
+#' @param ylab_diff Y-axis label for the difference plot.
+#' @param lty_i,lty_j,lty_diff Line types for history i, history j, and the
+#'   difference curve.
+#' @param pch_i,pch_j,pch_diff Point characters for highlighted locations.
+#' @param cex_pts Point expansion for highlighted locations.
+#' @param add_zero_line Logical; add a horizontal zero line on the difference plot?
+#' @param legend_loc Legend location.
+#' @param bty Legend box type.
+#' @param ylim_overlay Optional y-limits for the overlay panel.
+#' @param pad_ylim Fractional padding applied when computing overlay y-limits.
+#' @param include_highlight_in_ylim Logical; should highlighted points affect the
+#'   computed overlay y-limits?
+#' @param label_points Logical; label highlighted points by grid index?
 #' @export
 plot_coordinate_change <- function(mu_full_history,
                                    u_final,
@@ -572,11 +606,11 @@ plot_coordinate_change <- function(mu_full_history,
         history_j <= length(res$meta_history)) {
       Ki <- res$meta_history[[history_i]]$K_obs
       Kj <- res$meta_history[[history_j]]$K_obs
-      main <- sprintf("coord %d: history %d (K=%s) → history %d (K=%s)",
+      main <- sprintf("coord %d: history %d (K=%s) -> history %d (K=%s)",
                       coord, history_i, ifelse(is.null(Ki), "?", Ki),
                       history_j, ifelse(is.null(Kj), "?", Kj))
     } else {
-      main <- sprintf("coord %d: history %d → %d", coord, history_i, history_j)
+      main <- sprintf("coord %d: history %d -> %d", coord, history_i, history_j)
     }
   }
 
@@ -644,6 +678,9 @@ plot_coordinate_change <- function(mu_full_history,
 
 #' Extract a (u, gamma) block for a given progressive history index
 #'
+#' @param res Result returned by \code{progressive_smoothEM()}.
+#' @param h History index to extract.
+#' @param normalize_gamma Logical; renormalize rows of the returned gamma matrix?
 #' @export
 get_history_block <- function(res, h, normalize_gamma = TRUE) {
   if (is.null(res$meta_history)) stop("res must contain meta_history.")
@@ -688,6 +725,11 @@ get_history_block <- function(res, h, normalize_gamma = TRUE) {
 
 #' Compare posterior position summaries across two histories
 #'
+#' @param res Result returned by \code{progressive_smoothEM()}.
+#' @param h1,h2 History indices to compare.
+#' @param type Position summary to compare: posterior mean or MAP.
+#' @param add_identity Logical; draw the identity line?
+#' @param main Optional plot title.
 #' @export
 compare_positions_by_history <- function(res, h1, h2,
                                          type = c("mean", "max"),

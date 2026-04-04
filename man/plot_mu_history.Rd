@@ -35,11 +35,27 @@ plot_mu_history(
 
 \item{main}{Plot title.}
 
+\item{xlab}{X-axis label.}
+
+\item{ylab}{Y-axis label.}
+
+\item{lty}{Line type for the kriged mean curves.}
+
 \item{add_points}{Overlay observed means at design points.}
 
 \item{u_obs, mu_obs_list}{Optional overrides for points.}
 
 \item{res}{Optional progressive_smoothEM() result used to auto-fill points/title.}
+
+\item{pch}{Point character for observed means.}
+
+\item{cex}{Point expansion for observed means.}
+
+\item{legend_loc}{Legend location.}
+
+\item{legend_prefix}{Prefix for coordinate labels in the legend.}
+
+\item{bty}{Legend box type.}
 }
 \value{
 Invisibly returns a list with plot inputs.

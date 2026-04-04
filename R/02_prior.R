@@ -4,8 +4,9 @@
 
 #' Prior precision for VAR(1) on K time points (d-dimensional)
 #'
-#' Model: U_1 ~ N(0, P0^{-1}), and for k>=2: U_k | U_{k-1} ~ N(A U_{k-1}, Q)
-#' Returns the joint precision matrix for vec(U_1,...,U_K).
+#' Model: \eqn{U_1 \sim N(0, P0^{-1})}, and for \eqn{k >= 2},
+#' \eqn{U_k \mid U_{k-1} \sim N(A U_{k-1}, Q)}.
+#' Returns the joint precision matrix for \eqn{\mathrm{vec}(U_1, \dots, U_K)}.
 #'
 #' @param K integer number of time points.
 #' @param d integer state dimension.
@@ -171,7 +172,7 @@ make_random_walk_precision_sparse <- function(K, d, q = 1, lambda = 1, ridge = 0
 
   # q-th forward difference coefficients:
   # Δ^q x_i = sum_{j=0}^q (-1)^(q-j) * choose(q, j) * x_{i+j}
-  coeff <- stats::choose(q, 0:q) * (-1)^(q - (0:q))
+  coeff <- choose(q, 0:q) * (-1)^(q - (0:q))
 
   # Build sparse D: rows i=1..K-q, cols i+j
   # Each offset j contributes one diagonal band
@@ -231,7 +232,7 @@ make_lattice_rwq_precision_sparse <- function(K, d, q = 1, lambda = 1, ridge = 0
 
   # ---- 1D RW(q): build sparse forward-difference Dq of size (K-q) x K ----
   nrows <- K - q
-  coeff <- stats::choose(q, 0:q) * (-1)^(q - (0:q))  # length q+1
+  coeff <- choose(q, 0:q) * (-1)^(q - (0:q))  # length q+1
 
   i_list <- vector("list", q + 1)
   j_list <- vector("list", q + 1)

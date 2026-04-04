@@ -1,0 +1,260 @@
+---
+title: "Analysis on the eLife Fitness Dataset using MPCurver"
+author: "Vignette Author"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Overview
+
+This note revisits the eLife fitness dataset using the current unified interface in `MPCurver`, with a specific focus on **learning the
+number of latent ordering systems**.
+
+We now keep the workflow intentionally simple:
+
+- use `isomap` as the initialization method;
+- set `K = 50`;
+
+## First look at the data:
+
+```{r load, include=FALSE, message=FALSE}
+library(MPCurver)
+
+locate_elife_csv <- function() {
+    pkg_path <- system.file("extdata", "elife-61271-fig2-data1-v2.csv", package = "MPCurver")
+    if (nzchar(pkg_path) && file.exists(pkg_path)) {
+        return(pkg_path)
+    }
+    src_path <- file.path("..", "inst", "extdata", "elife-61271-fig2-data1-v2.csv")
+    return(src_path)
+}
+
+csv_path <- locate_elife_csv()
+dat <- read.csv(csv_path, check.names = FALSE)
+
+fitness_cols <- grep("_fitness$", names(dat), value = TRUE)
+error_cols <- grep("_error$", names(dat), value = TRUE)
+
+X <- as.matrix(dat[, fitness_cols, drop = FALSE])
+mode(X) <- "numeric"
+colnames(X) <- sub("_fitness$", "", fitness_cols)
+
+meta <- dat[, c("barcode", "gene", "type", "ploidy", "class", "mutation_type"), drop = FALSE]
+```
+
+```{r helpers, include=FALSE}
+environment_category <- function(env) {
+    if (grepl("Ferm|Day", env)) {
+        return("time course")
+    }
+    if (grepl("NaCl|KCl", env)) {
+        return("salt stress")
+    }
+    if (grepl("Ben|Flu|GdA|DMSO", env)) {
+        return("drug / chemical")
+    }
+    if (grepl("Gluc|Baffle", env)) {
+        return("glucose / batch")
+    }
+    if (grepl("Raf|Gly|EtOH|Suc", env)) {
+        return("carbon source")
+    }
+    "other"
+}
+
+env_category <- vapply(colnames(X), environment_category, character(1))
+
+plot_ordered_heatmap <- function(X, order_idx, env_idx = seq_len(ncol(X)),
+                                 main = "", zlim = c(-2.5, 2.5)) {
+    Xsub <- X[order_idx, env_idx, drop = FALSE]
+    Xsub <- scale(Xsub)
+    Xsub[!is.finite(Xsub)] <- 0
+    pal <- colorRampPalette(c("#313695", "#74add1", "#f7f7f7", "#f46d43", "#a50026"))(101)
+    image(
+        x = seq_len(nrow(Xsub) + 1L),
+        y = seq_len(ncol(Xsub) + 1L),
+        z = Xsub,
+        col = pal,
+        axes = FALSE,
+        xlab = "Mutants ordered by inferred pseudotime",
+        ylab = "",
+        zlim = zlim,
+        main = main
+    )
+    axis(2, at = seq_len(ncol(Xsub)), labels = colnames(Xsub), las = 2, cex.axis = 0.55)
+    box()
+}
+
+plot_pi_profile <- function(pi_vec, main) {
+    barplot(
+        pi_vec,
+        border = NA,
+        col = "#4477AA",
+        main = main,
+        xlab = "Latent position",
+        ylab = expression(hat(pi)[k])
+    )
+}
+
+plot_representative_trajectories <- function(X, fit_partition, which_assign = "A",
+                                             n_show = 6L, main_prefix = "") {
+    ord_idx <- if (which_assign == "A") 1L else 2L
+    fit_ord <- fit_partition$fits[[ord_idx]]$fit
+    pt_map <- fit_partition$locations[[which_assign]]$map$index
+    pt_mean <- fit_partition$locations[[which_assign]]$mean$pseudotime
+    assign_vec <- fit_partition$partition$assign
+
+    env_idx <- which(assign_vec == which_assign)
+    if (!length(env_idx)) {
+        return(invisible(NULL))
+    }
+
+    cor_vec <- vapply(env_idx, function(j) {
+        suppressWarnings(cor(X[, j], pt_mean, method = "spearman"))
+    }, numeric(1))
+    env_idx <- env_idx[order(abs(cor_vec), decreasing = TRUE)]
+    env_idx <- env_idx[seq_len(min(n_show, length(env_idx)))]
+
+    mu <- fit_ord$posterior$mean[env_idx, , drop = FALSE]
+    K <- ncol(mu)
+    obs_mean <- t(vapply(env_idx, function(j) {
+        out <- rep(NA_real_, K)
+        for (k in seq_len(K)) {
+            idx <- which(pt_map == k)
+            if (length(idx)) out[k] <- mean(X[idx, j])
+        }
+        out
+    }, numeric(K)))
+
+    nr <- ceiling(length(env_idx) / 2)
+    op <- par(mfrow = c(nr, 2), mar = c(3.5, 3.5, 2.5, 1))
+    on.exit(par(op), add = TRUE)
+    for (ii in seq_along(env_idx)) {
+        jj <- env_idx[ii]
+        ylim <- range(c(mu[ii, ], obs_mean[ii, ]), na.rm = TRUE)
+        plot(
+            seq_len(K), obs_mean[ii, ],
+            type = "o",
+            pch = 16,
+            col = "#666666",
+            ylim = ylim,
+            xlab = "Latent position",
+            ylab = "Fitness",
+            main = paste0(main_prefix, colnames(X)[jj])
+        )
+        lines(seq_len(K), mu[ii, ], type = "o", pch = 19, col = "#D95F02", lwd = 2)
+        legend("topleft",
+            legend = c("Observed bin mean", "Posterior mean"),
+            col = c("#666666", "#D95F02"),
+            lty = 1, pch = c(16, 19), bty = "n", cex = 0.8
+        )
+    }
+}
+
+trajectory_roughness <- function(raw_fit) {
+    M <- raw_fit$posterior$mean
+    Q <- raw_fit$Q_K
+    mean(vapply(seq_len(nrow(M)), function(j) {
+        as.numeric(t(M[j, ]) %*% Q %*% M[j, ])
+    }, numeric(1)))
+}
+```
+
+Take a look at the number of mutants and environments.
+```{r data-summary}
+data.frame(
+    quantity = c("mutants", "environments", "fitness columns", "error columns"),
+    value = c(nrow(X), ncol(X), length(fitness_cols), length(error_cols))
+) |>
+    knitr::kable()
+
+sort(table(env_category), decreasing = TRUE) |>
+    as.data.frame() |>
+    stats::setNames(c("category", "n_environments")) |>
+    knitr::kable()
+```
+
+
+## Initial fit of a MPCurver
+
+First, we will try to fit a MPCurve using `MPCurver` package, the goal is to learn the latent position of all the mutants such that their fitness scores are functions that vary smoothly along the latent positions.
+
+```{r uni-fits}
+fit_unidir <- fit_mpcurve(
+    X,
+    method = "isomap",
+    K = 50,
+    rw_q = 2,
+    verbose = FALSE
+)
+```
+
+Take a look at the convergence:
+
+```{r convergence, fig.width = 8, fig.height = 8, out.width = "100%"}
+plot(fit_unidir, plot_type = "elbo")
+```
+
+Look at some fitted trajectories (first 4 environments):
+
+```{r uni-trajectory, fig.width = 8, fig.height = 8, out.width = "100%"}
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+plot(fit_unidir, dims = 1)
+plot(fit_unidir, dims = 2)
+plot(fit_unidir, dims = 3)
+plot(fit_unidir, dims = 4)
+par(mfrow = c(1, 1))
+```
+
+These four environments (`r paste(colnames(X)[1:4], collapse = ", ")`) show very similar trajectories along the latent position, both appearing to increase with latent positions. 
+However, the fitted curves appear to be quite wiggly. 
+To make the curves smoother, we can apply a prior on $\lambda$, which controls the roughness of the trajectories. 
+The prior is an exponential prior assigned to $1/sqrt(\lambda)$. 
+By increasing the rate parameter of the exponential prior, we can make the fitted trajectories smoother.
+
+```{r uni-fits-smooth}
+fit_unidir_smooth <- fit_mpcurve(
+    X,
+    method = "isomap",
+    K = 50,
+    iter = 500,
+    rw_q = 2,
+    lambda_sd_prior_rate = 1e4,
+    verbose = FALSE
+)
+```
+
+Again, check if the model has converged:
+
+```{r uni-convergence-smooth, fig.width = 8, fig.height = 8, out.width = "100%"}
+plot(fit_unidir_smooth, plot_type = "elbo")
+summary(fit_unidir_smooth)
+```
+
+Take a look at the fitted trajectories:
+
+```{r uni-trajectory-smooth, fig.width = 8, fig.height = 8, out.width = "100%"}
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+plot(fit_unidir_smooth, dims = 1)
+plot(fit_unidir_smooth, dims = 2)
+plot(fit_unidir_smooth, dims = 3)
+plot(fit_unidir_smooth, dims = 4)
+par(mfrow = c(1, 1))
+```
+
+This looks much more reaonsable to me. 
+We can compare the mean latent positions learned by the two models:
+
+```{r compare-latent-positions, fig.width = 8, fig.height = 8, out.width = "100%"}
+cor(fit_unidir_smooth$locations$mean$pseudotime, fit_unidir$locations$mean$pseudotime)
+plot(fit_unidir_smooth$locations$mean$pseudotime, fit_unidir$locations$mean$pseudotime,
+    xlab = "Latent position (smooth)", ylab = "Latent position (rough)"
+)
+abline(0, 1, lty = 2)
+```
+
+The latent positions do not change much, but the trajectories are much smoother. 

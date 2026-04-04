@@ -149,7 +149,7 @@ print.summary.smooth_em <- function(x, ...) {
               ifelse(is.na(x$eigen_tol), "?", format(x$eigen_tol, digits = 6))))
 
   cat(sprintf("  iter = %s\n", ifelse(is.na(x$iter), "?", x$iter)))
-  cat(sprintf("  last ELBO = %s (Δ last = %s)\n",
+  cat(sprintf("  last ELBO = %s (delta last = %s)\n",
               ifelse(is.na(x$elbo_last), "?", format(x$elbo_last, digits = 8)),
               ifelse(is.na(x$elbo_diff_last), "?", format(x$elbo_diff_last, digits = 4))))
   cat(sprintf("  last penLogLik = %s\n",

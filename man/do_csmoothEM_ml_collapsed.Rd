@@ -11,7 +11,7 @@ do_csmoothEM_ml_collapsed(
   record = TRUE,
   lambda_min = NULL,
   lambda_max = NULL,
-  sigma_update = c("mstep", "ml"),
+  sigma_update = c("ml", "mstep"),
   sigma_min = 1e-10,
   sigma_max = 1e+10,
   verbose = FALSE
@@ -28,7 +28,8 @@ do_csmoothEM_ml_collapsed(
 
 \item{lambda_min, lambda_max}{Bounds for lambda optimization.}
 
-\item{sigma_update}{Either \code{"mstep"} (standard M-step update) or \code{"ml"} (optimize collapsed objective).}
+\item{sigma_update}{Either \code{"ml"} (default; optimize the collapsed objective jointly
+with \eqn{\lambda}) or legacy \code{"mstep"} (standard variance M-step).}
 
 \item{sigma_min, sigma_max}{Bounds for sigma2 when \code{sigma_update="ml"}.}
 

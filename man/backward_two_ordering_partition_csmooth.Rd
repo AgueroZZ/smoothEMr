@@ -78,7 +78,17 @@ where \eqn{S_k} is computed by \code{\link{score_feature_given_Gamma}} under the
 This function never re-calls ordering initializers (e.g. fiedler/pcurve/PCA) after the initial
 construction. Ordering updates are done only via warm-start csmoothEM iterations.
 }
+\details{
+This is the legacy \code{csmooth_em}-based backward partition routine. It is
+retained mainly for benchmark comparison and internal testing against the
+newer variational pipeline. For user-facing analyses, prefer
+\code{\link{fit_mpcurve}} with the soft-CAVI partition path and optional
+greedy dimension selection.
+}
 \seealso{
-\code{\link{initialize_csmoothEM}}, \code{\link{do_csmoothEM}}, \code{\link{score_feature_given_Gamma}},
-  \code{\link{append_coord_to_fit_csmooth}}, \code{\link{drop_coord_from_fit_csmooth}}
+\code{\link{fit_mpcurve}}, \code{\link{initialize_csmoothEM}},
+  \code{\link{do_csmoothEM}},
+  \code{\link{score_feature_given_Gamma}},
+  \code{\link{append_coord_to_fit_csmooth}},
+  \code{\link{drop_coord_from_fit_csmooth}}
 }

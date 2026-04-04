@@ -1,87 +1,76 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# smoothEMr
+# MPCurver
 
 <!-- badges: start -->
 
 <!-- badges: end -->
 
-The goal of `smoothEMr` is to efficiently implement the SmoothEM
-algorithm for various GMRF priors, using different initialization
-strategies.
+`MPCurver` fits smooth latent orderings with Gaussian-mixture / GMRF
+models.
+
+The recommended workflow uses the **`cavi` variational backend** through
+`fit_mpcurve()`. The older `csmooth_em` and `smooth_em` algorithms are
+kept only as lower-level compatibility helpers and are no longer part of
+the main package workflow.
+
+## Documentation
+
+The package documentation is organized around the recommended `cavi`
+workflow, with legacy material intentionally pushed out of the main
+entry points.
+
+- `vignettes/mpcurve_intro.Rmd`: current single-ordering introduction.
+- `vignettes/partition.Rmd`: current dual-ordering / feature-partition
+  tools.
+- `important_derivations/cavi_math_details.Rmd`: repo-level derivation
+  of the single-ordering CAVI updates.
+- `important_derivations/cavi_vs_csmooth_math.Rmd`: repo-level
+  comparison between `cavi` and legacy `csmooth_em`.
 
 ## Installation
 
-You can install the development version of `smoothEMr` like so:
+You can install the development version of `MPCurver` like so:
 
 ``` r
-pak::pak("AgueroZZ/smoothEMr")
+pak::pak("AgueroZZ/MPCurver")
 ```
 
 ## Example
 
-This is a basic example which shows you how to solve a common problem:
+This is a basic example using the recommended `mpcurve` interface:
 
 ``` r
-library(smoothEMr)
+library(MPCurver)
 ```
 
-We will simulate some data from a spiral embedded in 2D space, and then
-fit a smoothEM model to it.
+We will simulate a moderately easy 2D spiral and fit the default
+MPCurver workflow.
 
 ``` r
-simulate_swiss_roll_1d_2d <- function(n = 800,
-                                     t_range = c(1.5 * pi, 6 * pi),
-                                     sigma = 0.15,     # can be scalar or length-2
-                                     seed = 1) {
-  stopifnot(length(t_range) == 2)
-  stopifnot(length(sigma) == 1 || length(sigma) == 2)
-
-  set.seed(seed)
-
-  # 1D parameter
-  t <- runif(n, min = t_range[1], max = t_range[2])
-
-  # true 2D "swiss roll" (spiral)
-  x_true <- t * cos(t)
-  y_true <- t * sin(t)
-
-  # noise
-  if (length(sigma) == 1) sigma <- rep(sigma, 2)
-  x_obs <- x_true + rnorm(n, 0, sigma[1])
-  y_obs <- y_true + rnorm(n, 0, sigma[2])
-
-  list(
-    t = t,
-    truth = data.frame(x = x_true, y = y_true),
-    obs   = data.frame(x = x_obs,  y = y_obs)
-  )
-}
-
-sim <- simulate_swiss_roll_1d_2d(n = 1500, sigma = 0.2, seed = 123)
-
-plot(sim$obs$x, sim$obs$y, pch = 16, cex = 0.35, col = "grey80",
-     xlab = "x", ylab = "y", main = "Noisy 2D swiss-roll (spiral)")
-pal <- colorRampPalette(c("navy", "cyan", "yellow", "red"))(256)
-t_scaled <- (sim$t - min(sim$t)) / (max(sim$t) - min(sim$t))  # in [0,1]
-col_t <- pal[pmax(1, pmin(256, 1 + floor(255 * t_scaled)))]
-points(sim$truth$x, sim$truth$y, pch = 16, cex = 0.25, col = col_t)
+sim <- simulate_spiral2d(n = 1500, turns = 1, noise = 0.08, seed = 123)
+plot(sim$obs, pch = 16, cex = 0.35, col = "grey80",
+     xlab = "x1", ylab = "x2", main = "Noisy 2D spiral")
 ```
 
 <img src="man/figures/README-unnamed-chunk-2-1.png" width="100%" />
 
-Now we fit a smoothEM model to the noisy observations.
+Now we fit the model with `fit_mpcurve()`. The public wrapper is
+CAVI-first, so there is no longer an `algorithm` switch here.
 
 ``` r
-# initialize using tSNE
-fit <- initialize_smoothEM(X = as.matrix(sim$obs), method = "tSNE", rw_q = 2)
+set.seed(123)
+fit <- fit_mpcurve(
+  X = as.matrix(sim$obs),
+  method = "isomap",
+  K = 40,
+  rw_q = 2,
+  iter = 150,
+  discretization = "equal",
+  tol = 1e-8
+)
 
-# run 10 iterations of smoothEM
-fit <- fit |>
-  do_smoothEM(iter = 10)
-
-# plot results
 plot(fit)
 ```
 
@@ -93,77 +82,35 @@ plot(fit, plot_type = "elbo")
 
 <img src="man/figures/README-unnamed-chunk-3-2.png" width="100%" />
 
-We could also try other initialization methods, such as PCA or Fiedler
-vector initialization.
+We can compare several initialization strategies under the same `cavi`
+model:
 
 ``` r
-fit_pca <- initialize_smoothEM(X = as.matrix(sim$obs), method = "PCA", rw_q = 2) |>
-  do_smoothEM(iter = 50)
-plot(fit_pca)
-```
-
-<img src="man/figures/README-unnamed-chunk-4-1.png" width="100%" />
-
-``` r
-
-fit_fiedler <- initialize_smoothEM(X = as.matrix(sim$obs), method = "fiedler", rw_q = 2) |>
-  do_smoothEM(iter = 50)
-plot(fit_fiedler)
-```
-
-<img src="man/figures/README-unnamed-chunk-4-2.png" width="100%" />
-
-To automatically select the best initialization method, we can use:
-
-``` r
-best <- optimize_initial(
-  as.matrix(sim$obs),
-  num_iter = 5,
-  num_cores = 6,
-  m_max = 6,
-  two_panel = FALSE,
-  plot = TRUE
+fits <- fit_mpcurve(
+  X = as.matrix(sim$obs),
+  method = c("PCA", "fiedler", "isomap"),
+  K = 40,
+  rw_q = 2,
+  iter = 150,
+  discretization = "equal",
+  tol = 1e-8,
+  num_cores = 1
 )
+
+attr(fits, "summary")
+#> NULL
 ```
 
-<img src="man/figures/README-unnamed-chunk-5-1.png" width="100%" />
+`fit_mpcurve()` returns either a single `mpcurve` fit or a list of fits.
+Each fit keeps the unified `params`, `gamma`, `elbo_trace`,
+`loglik_trace`, and the underlying raw fit in `$fit`.
 
-``` r
+Legacy `csmooth_em` and `smooth_em` code paths are still present as
+lower-level compatibility functions, but they are no longer part of the
+public `fit_mpcurve()` wrapper.
 
-plot(best, plot_type = "scatterplot", dims = c(1,2))
-```
-
-<img src="man/figures/README-unnamed-chunk-5-2.png" width="100%" />
-
-``` r
-
-best_fit <- best |>
-  do_smoothEM(iter = 50)
-
-plot(best_fit)
-```
-
-<img src="man/figures/README-unnamed-chunk-5-3.png" width="100%" />
-
-If we choose a different choice of `num_iter`, we could end up with a
-different optimal initialization:
-
-``` r
-best_2 <- optimize_initial(
-  as.matrix(sim$obs),
-  num_iter = 30,
-  num_cores = 6,
-  m_max = 6,
-  two_panel = FALSE,
-  plot = TRUE
-)
-```
-
-<img src="man/figures/README-unnamed-chunk-6-1.png" width="100%" />
-
-``` r
-
-plot(best_2, plot_type = "scatterplot", dims = c(1,2))
-```
-
-<img src="man/figures/README-unnamed-chunk-6-2.png" width="100%" />
+For dual-ordering analyses, the recommended public entry point is
+`fit_mpcurve(..., intrinsic_dim = 2)` or more generally
+`fit_mpcurve(..., intrinsic_dim = M)`. The lower-level
+`soft_two_trajectory_cavi()` helper is still available for explicit
+two-fit initialization workflows.

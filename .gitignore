@@ -1,3 +1,34 @@
+# macOS
 .DS_Store
-.Rproj.user
+
+# R session files
+.RData
+.Rhistory
+.Rproj.user/
+
+# Package build artifacts
+*.tar.gz
+*.Rcheck/
+..Rcheck/
 inst/doc
+
+# Generated documentation
+README.html
+
+# IDE
+.vscode/
+
+# Claude agent files
+.claude/
+CLAUDE.md
+CLAUDE_5MIN.md
+AGENTS.md
+PACKAGE_OVERVIEW_FOR_AGENTS.md
+
+# Internal experiments and diagnostics
+vignettes/internal/
+scripts/
+output/
+tmp/
+debug_PCA.R
+important_derivations/
