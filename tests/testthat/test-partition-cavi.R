@@ -236,6 +236,51 @@ test_that("smooth-fit similarity supports fixed lambda mode and warns for ridge 
   expect_true(all(res_fixed$similarity_init$directional_lambda > 0))
 })
 
+test_that("soft_partition_cavi supports known measurement sd with smooth-fit initialization", {
+  sim <- simulate_intrinsic_trajectories(
+    n = 45,
+    d_signal = c(3, 3),
+    d_noise = 0,
+    sigma = 0.08,
+    seed = 45,
+    trajectory_family = c("monotone", "quadratic")
+  )
+  base_sd <- seq(0.07, 0.12, length.out = ncol(sim$X))
+  row_scale <- seq(1, 1.1, length.out = nrow(sim$X))
+  S <- outer(row_scale, base_sd)
+
+  res <- suppressWarnings(soft_partition_cavi(
+    sim$X,
+    S = S,
+    M = 2,
+    partition_init = "similarity",
+    similarity_metric = "smooth_fit",
+    K = 6,
+    ridge = 1e-6,
+    n_outer = 2,
+    inner_iter = 1L,
+    max_converge_iter = 2L,
+    verbose = FALSE
+  ))
+
+  expect_s3_class(res, "soft_partition_cavi")
+  expect_equal(res$control$noise_model, "known_observation_sd")
+  expect_equal(dim(res$measurement_sd), dim(S))
+  expect_equal(res$measurement_sd, S, tolerance = 1e-12)
+  expect_true(all(vapply(res$fits, function(f) !is.null(f$measurement_sd), logical(1))))
+  expect_true(all(vapply(res$fits, function(f) {
+    identical(f$control$noise_model, "known_observation_sd")
+  }, logical(1))))
+  expect_true(all(is.finite(res$objective_history)))
+  # Only check monotonicity in convergence phase (post-annealing).
+  # During annealing the temperature changes, so the objective function
+  # itself changes and monotonicity is not guaranteed.
+  converge_idx <- seq(from = res$n_anneal, to = length(res$objective_history))
+  if (length(converge_idx) >= 2L) {
+    expect_true(all(diff(res$objective_history[converge_idx]) >= -1e-8))
+  }
+})
+
 test_that("fit_mpcurve can use similarity initialization for intrinsic_dim > 1", {
   sim <- simulate_intrinsic_trajectories(
     n = 80,

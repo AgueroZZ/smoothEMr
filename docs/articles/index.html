@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">MPCurver</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -16,7 +16,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
-<li class="nav-item dropdown">
+<li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Getting started</h6></li>
@@ -24,10 +24,12 @@
     <li><a class="dropdown-item" href="../articles/partition.html">Feature Partitioning with MPCurver</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Case studies</h6></li>
-    <li><a class="dropdown-item" href="../articles/fitness.html">Analysis on the eLife Fitness Dataset using MPCurver</a></li>
+    <li><a class="dropdown-item" href="../articles/fitness.html">Analyzing the eLife Fitness Dataset with MPCurver</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Legacy</h6></li>
     <li><a class="dropdown-item" href="../articles/Intro.html">Introduction to MPCurver</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -55,7 +57,7 @@
       <h3>Case studies</h3>
       <div class="section-desc"></div>
 
-      <dl><dt><a href="fitness.html">Analysis on the eLife Fitness Dataset using MPCurver</a></dt>
+      <dl><dt><a href="fitness.html">Analyzing the eLife Fitness Dataset with MPCurver</a></dt>
         <dd>
       </dd></dl></div>
     <div class="section ">
@@ -63,6 +65,69 @@
       <div class="section-desc"></div>
 
       <dl><dt><a href="Intro.html">Introduction to MPCurver</a></dt>
+        <dd>
+      </dd></dl></div>
+    <div class="section ">
+      <h3>Internal (development notes)</h3>
+      <div class="section-desc"><p>Internal analysis notebooks and development diagnostics. Not part of the public API documentation.</p></div>
+
+      <dl><dt><a href="internal/cavi_initialization_diagnostics.html">CAVI Initialization Diagnostics on a Harder Model-Matched Benchmark</a></dt>
+        <dd>
+        </dd><dt><a href="internal/cavi_math_details.html">Mathematical Details of the MPCurver CAVI Algorithm</a></dt>
+        <dd>
+        </dd><dt><a href="internal/cavi_model_matched_sanity_check.html">Model-Matched Sanity Check for CAVI MPCurver</a></dt>
+        <dd>
+        </dd><dt><a href="internal/cavi_vs_csmooth_math.html">Conceptual and Mathematical Comparison of CAVI and csmooth_em</a></dt>
+        <dd>
+        </dd><dt><a href="internal/cavi_vs_csmooth_same_settings.html">CAVI vs csmooth_em Across Optimization Snapshots</a></dt>
+        <dd>
+        </dd><dt><a href="internal/csmooth_em_intro.html">Getting Started with Legacy csmooth_em</a></dt>
+        <dd>
+        </dd><dt><a href="internal/dual_ordering_method_comparison.html">Comparing Forward, Backward, and Soft Dual-Ordering Methods</a></dt>
+        <dd>
+        </dd><dt><a href="internal/dual_ordering_soft_partition.html">Distinguishing Two Ordering Systems with Soft Partitioning</a></dt>
+        <dd>
+        </dd><dt><a href="internal/elife_fitness_analysis.html">eLife Fitness Landscape Analysis with MPCurver</a></dt>
+        <dd>
+        </dd><dt><a href="internal/elife_greedy_dimension_analysis.html">Greedy Ordering-Dimension Analysis on the eLife Fitness Dataset</a></dt>
+        <dd>
+        </dd><dt><a href="internal/four_ordering_similarity_metric_diagnostic.html">Four-Ordering Similarity Metric Diagnostic</a></dt>
+        <dd>
+        </dd><dt><a href="internal/initialization_upgrade_partition_report.html">Initialization Upgrade: Mixed-Shape Partition Revisit</a></dt>
+        <dd>
+        </dd><dt><a href="internal/intrinsic_dimension_selection_sanity_check.html">Intrinsic Dimension Selection Sanity Check</a></dt>
+        <dd>
+        </dd><dt><a href="internal/Intro%202.html">Intro to MPCurver</a></dt>
+        <dd>
+        </dd><dt><a href="internal/lambda_sd_prior_rate_behavior.html">How lambda_sd_prior_rate Changes CAVI Fits</a></dt>
+        <dd>
+        </dd><dt><a href="internal/cluster_cols/linear_abs_correlation_blocks.html">Linear Block Recovery by Absolute Correlation</a></dt>
+        <dd>
+        </dd><dt><a href="internal/linear_dual_ordering_sanity_check.html">Linear Dual-Ordering Sanity Check</a></dt>
+        <dd>
+        </dd><dt><a href="internal/mixed_shape_dual_ordering_check.html">Mixed Monotone and Non-Monotone Dual-Ordering Check</a></dt>
+        <dd>
+        </dd><dt><a href="internal/monotone_dual_ordering_sanity_check.html">Monotone Nonlinear Dual-Ordering Sanity Check</a></dt>
+        <dd>
+        </dd><dt><a href="internal/mpcurve_intro.html">Getting Started with MPCurver CAVI</a></dt>
+        <dd>
+        </dd><dt><a href="internal/partition_coherent_elbo_derivation.html">Deriving a Coherent ELBO for the Multi-Ordering Partition Model</a></dt>
+        <dd>
+        </dd><dt><a href="internal/partition_csmooth.html">Coordinate Partitioning with Legacy csmooth_em</a></dt>
+        <dd>
+        </dd><dt><a href="internal/partition_occam_penalty_note.html">Why the Current Partition Objective Does Not Encode an Occam Penalty for the Number of Orderings</a></dt>
+        <dd>
+        </dd><dt><a href="internal/partition.html">Coordinate Partitioning with CAVI</a></dt>
+        <dd>
+        </dd><dt><a href="internal/cluster_cols/same_ordering_similarity_framework.html">Same-Ordering Similarity Matrices for Multi-Ordering Initialization</a></dt>
+        <dd>
+        </dd><dt><a href="internal/similarity_initialization_monotone_report.html">Similarity Initialization: Two-Monotone Dimension Selection Check</a></dt>
+        <dd>
+        </dd><dt><a href="internal/similarity_initialization_partition_report.html">Similarity Initialization: Mixed-Shape Dimension Selection Check</a></dt>
+        <dd>
+        </dd><dt><a href="internal/soft_partition_cavi_vs_csmooth.html">Soft Dual-Ordering Partition: CAVI versus Legacy csmooth_em</a></dt>
+        <dd>
+        </dd><dt><a href="internal/three_ordering_similarity_metric_diagnostic.html">Three-Ordering Similarity Metric Diagnostic</a></dt>
         <dd>
       </dd></dl></div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

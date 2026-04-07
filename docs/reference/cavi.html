@@ -21,7 +21,7 @@ covariances \(S_j\)."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">MPCurver</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,10 +38,12 @@ covariances \(S_j\)."></head><body>
     <li><a class="dropdown-item" href="../articles/partition.html">Feature Partitioning with MPCurver</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Case studies</h6></li>
-    <li><a class="dropdown-item" href="../articles/fitness.html">Analysis on the eLife Fitness Dataset using MPCurver</a></li>
+    <li><a class="dropdown-item" href="../articles/fitness.html">Analyzing the eLife Fitness Dataset with MPCurver</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Legacy</h6></li>
     <li><a class="dropdown-item" href="../articles/Intro.html">Introduction to MPCurver</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -78,6 +80,7 @@ covariances \(S_j\).</p>
 <span>  responsibilities_init <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  pi_init <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  sigma2_init <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  S <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda_init <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  rw_q <span class="op">=</span> <span class="fl">2L</span>,</span>
 <span>  ridge <span class="op">=</span> <span class="fl">0</span>,</span>
@@ -120,6 +123,14 @@ covariances \(S_j\).</p>
 
 <dt id="arg-sigma-init">sigma2_init<a class="anchor" aria-label="anchor" href="#arg-sigma-init"></a></dt>
 <dd><p>Optional initial feature-specific variances.</p></dd>
+
+
+<dt id="arg-s">S<a class="anchor" aria-label="anchor" href="#arg-s"></a></dt>
+<dd><p>Optional known measurement standard deviations. If <code>NULL</code>,
+the current feature-specific variance inference is used. If a length-<code>d</code>
+vector, each feature uses a known shared standard deviation across
+observations. If an <code>n x d</code> matrix, each observation-feature pair uses
+its own known standard deviation.</p></dd>
 
 
 <dt id="arg-lambda-init">lambda_init<a class="anchor" aria-label="anchor" href="#arg-lambda-init"></a></dt>
@@ -177,6 +188,7 @@ initialization-only state.</p></dd>
     <p>An object of class <code>"cavi"</code> with components including:</p><ul><li><p><code>$params</code>: current <code>pi</code>, <code>mu</code>, and <code>sigma2</code></p></li>
 <li><p><code>$posterior</code>: Gaussian posterior summaries for feature trajectories</p></li>
 <li><p><code>$gamma</code>: cell-by-component responsibilities</p></li>
+<li><p><code>$measurement_sd</code>: optional known measurement SD specification</p></li>
 <li><p><code>$lambda_vec</code>: feature-specific smoothness parameters</p></li>
 <li><p><code>$elbo_trace</code>: the monotone variational objective used for diagnostics</p></li>
 <li><p><code>$loglik_trace</code>: a plug-in observed log-likelihood diagnostic</p></li>

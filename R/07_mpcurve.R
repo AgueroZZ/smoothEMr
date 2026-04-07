@@ -713,6 +713,7 @@ as_mpcurve.cavi <- function(x, ...) {
         sigma2 = params$sigma2
       ),
       gamma        = x$gamma,
+      measurement_sd = x$measurement_sd %||% NULL,
       locations    = .mpcurve_locations_from_gamma(x$gamma),
       elbo_trace   = x$elbo_trace   %||% numeric(0),
       loglik_trace = x$loglik_trace %||% numeric(0),
@@ -808,6 +809,7 @@ as_mpcurve.soft_partition_cavi <- function(x, ...) {
   structure(
     list(
       fits      = fits_mp,
+      measurement_sd = ref$measurement_sd %||% NULL,
       locations = stats::setNames(lapply(fits_mp, `[[`, "locations"), ord_labels),
       partition = list(
         pi_weights = visible_weights,
@@ -1383,6 +1385,9 @@ plot.mpcurve <- function(
 #'   ordering) or exact \code{T = 1} partition steps.
 #' @param lambda Optional scalar or d-vector. For single-ordering CAVI only:
 #'   fix \code{lambda_j} at this value for the continuation run.
+#' @param S Optional known measurement standard deviations. If \code{NULL},
+#'   reuse the value stored on \code{object}. Supplying a new \code{S} is only
+#'   allowed when it matches the stored specification.
 #' @param tol Optional relative ELBO tolerance for single-ordering CAVI. If
 #'   \code{NULL}, reuse the stored value.
 #' @param lambda_sd_prior_rate Optional positive rate for the induced
@@ -1427,6 +1432,7 @@ plot.mpcurve <- function(
 do_mpcurve <- function(object,
                        iter = 1,
                        lambda = NULL,
+                       S = NULL,
                        tol = NULL,
                        lambda_sd_prior_rate = NULL,
                        lambda_min = NULL,
@@ -1463,6 +1469,16 @@ do_mpcurve <- function(object,
     fits <- sp$fits
     if (!length(fits)) {
       stop("No ordering fits found in object$fit$fits.")
+    }
+    stored_S <- object$measurement_sd %||% sp$measurement_sd %||% (fits[[1]]$measurement_sd %||% NULL)
+    if (!is.null(S)) {
+      if (is.null(stored_S)) {
+        stop("This fit was created without S; refit with S instead of adding it in do_mpcurve().",
+             call. = FALSE)
+      }
+      if (!.cavi_same_measurement_sd(stored_S, S)) {
+        stop("Supplied S does not match the measurement_sd stored on object.", call. = FALSE)
+      }
     }
 
     X <- fits[[1]]$data
@@ -1662,10 +1678,11 @@ do_mpcurve <- function(object,
   }
 
   tol_use <- tol %||% (object$fit$control %||% list())$tol %||% 1e-6
-  new_fit <- do_cavi(
+    new_fit <- do_cavi(
     object = object$fit,
     iter = iter,
     lambda = lambda,
+    S = S,
     lambda_sd_prior_rate = lambda_sd_prior_rate,
     lambda_min = lambda_min,
     lambda_max = lambda_max,
@@ -1703,6 +1720,10 @@ do_mpcurve <- function(object,
 #' @param rw_q Integer random-walk order for the GMRF prior.
 #' @param lambda Positive scalar initial value for \code{lambda_j} in the
 #'   single-ordering CAVI fit.
+#' @param S Optional known measurement standard deviations. If a length-\code{d}
+#'   vector, each feature uses a known shared standard deviation across
+#'   observations. If an \code{n x d} matrix, each observation-feature pair uses
+#'   its own known standard deviation.
 #' @param fix_lambda Logical; if \code{TRUE}, keep \code{lambda_j} fixed at the
 #'   supplied initial value in the single-ordering CAVI fit.
 #' @param iter Maximum number of CAVI sweeps for the single-ordering fit.
@@ -1764,7 +1785,7 @@ do_mpcurve <- function(object,
 #' @param n_outer Number of annealing steps for partition CAVI.
 #' @param inner_iter Number of weighted CAVI sweeps per annealing step.
 #' @param max_converge_iter Maximum number of exact \code{T = 1} partition
-#'   iterations after annealing.
+#'   iterations after annealing. Defaults to \code{iter} when \code{NULL}.
 #' @param tol_outer Relative objective tolerance for partition phase-2
 #'   convergence.
 #' @param freeze_unused_ordering For partition fits only: if \code{TRUE},
@@ -1804,6 +1825,7 @@ fit_mpcurve <- function(
     K = NULL,
     rw_q = 2,
     lambda = 1,
+    S = NULL,
     fix_lambda = FALSE,
     iter = 100,
     tol = 1e-6,
@@ -1829,7 +1851,7 @@ fit_mpcurve <- function(
     T_end = 1,
     n_outer = 25L,
     inner_iter = 1L,
-    max_converge_iter = 100L,
+    max_converge_iter = NULL,
     tol_outer = 1e-5,
     freeze_unused_ordering = TRUE,
     freeze_unused_ordering_threshold = 0.5,
@@ -1852,6 +1874,7 @@ fit_mpcurve <- function(
   algo_check <- .mpcurve_extract_algorithm_arg(dots, caller = "fit_mpcurve()")
   dots <- algo_check$dots
   .mpcurve_check_legacy_public_args(dots, caller = "fit_mpcurve()")
+  max_converge_iter <- max_converge_iter %||% as.integer(iter)
 
   fit_args <- list(
     X = X,
@@ -1859,6 +1882,7 @@ fit_mpcurve <- function(
     K = K,
     rw_q = rw_q,
     lambda = lambda,
+    S = S,
     fix_lambda = fix_lambda,
     iter = iter,
     tol = tol,
@@ -1957,6 +1981,7 @@ fit_mpcurve <- function(
     sp_args <- c(
       list(
         X = X,
+        S = S,
         M = M,
         init_methods = init_methods,
         pca_components = pca_components,
@@ -2006,6 +2031,7 @@ fit_mpcurve <- function(
         rw_q = rw_q,
         ridge = ridge,
         discretization = discretization,
+        S = S,
         fix_lambda = fix_lambda,
         lambda_sd_prior_rate = lambda_sd_prior_rate,
         lambda_min = lambda_min,

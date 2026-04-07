@@ -17,3 +17,9 @@ articles:
     navbar: Legacy
     contents:
       - Intro
+  - title: Internal (development notes)
+    desc: >
+      Internal analysis notebooks and development diagnostics.
+      Not part of the public API documentation.
+    contents:
+      - starts_with("internal/")

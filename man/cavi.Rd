@@ -11,6 +11,7 @@ cavi(
   responsibilities_init = NULL,
   pi_init = NULL,
   sigma2_init = NULL,
+  S = NULL,
   lambda_init = NULL,
   rw_q = 2L,
   ridge = 0,
@@ -38,6 +39,12 @@ cavi(
 \item{pi_init}{Optional initial mixture proportions.}
 
 \item{sigma2_init}{Optional initial feature-specific variances.}
+
+\item{S}{Optional known measurement standard deviations. If \code{NULL},
+the current feature-specific variance inference is used. If a length-\code{d}
+vector, each feature uses a known shared standard deviation across
+observations. If an \code{n x d} matrix, each observation-feature pair uses
+its own known standard deviation.}
 
 \item{lambda_init}{Optional initial feature-specific smoothness vector.}
 
@@ -73,6 +80,7 @@ An object of class \code{"cavi"} with components including:
   \item \code{$params}: current \code{pi}, \code{mu}, and \code{sigma2}
   \item \code{$posterior}: Gaussian posterior summaries for feature trajectories
   \item \code{$gamma}: cell-by-component responsibilities
+  \item \code{$measurement_sd}: optional known measurement SD specification
   \item \code{$lambda_vec}: feature-specific smoothness parameters
   \item \code{$elbo_trace}: the monotone variational objective used for diagnostics
   \item \code{$loglik_trace}: a plug-in observed log-likelihood diagnostic

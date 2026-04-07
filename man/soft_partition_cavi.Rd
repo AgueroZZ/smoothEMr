@@ -6,6 +6,7 @@
 \usage{
 soft_partition_cavi(
   X,
+  S = NULL,
   M = 2L,
   fits_init = NULL,
   init_methods = NULL,

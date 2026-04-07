@@ -72,6 +72,7 @@ test_that("fit_mpcurve and do_mpcurve expose a cavi-only public wrapper", {
   do_formals <- names(formals(do_mpcurve))
 
   expect_true("greedy" %in% fit_formals)
+  expect_true("S" %in% fit_formals)
   expect_false("algorithm" %in% fit_formals)
   expect_false("relative_lambda" %in% fit_formals)
   expect_false("adaptive" %in% fit_formals)
@@ -80,9 +81,40 @@ test_that("fit_mpcurve and do_mpcurve expose a cavi-only public wrapper", {
   expect_false("tol_decrease" %in% fit_formals)
 
   expect_false("adaptive" %in% do_formals)
+  expect_true("S" %in% do_formals)
   expect_false("sigma_update" %in% do_formals)
   expect_false("check_decrease" %in% do_formals)
   expect_false("tol_decrease" %in% do_formals)
+})
+
+test_that("fit_mpcurve and do_mpcurve preserve known measurement sd", {
+  sim <- simulate_cavi_toy(
+    n = 70,
+    d = 6,
+    K = 5,
+    rw_q = 2,
+    seed = 44
+  )
+  S <- seq(0.09, 0.14, length.out = ncol(sim$X))
+
+  fit <- fit_mpcurve(
+    sim$X,
+    K = 5,
+    S = S,
+    iter = 4,
+    tol = 0,
+    verbose = FALSE
+  )
+  fit_more <- do_mpcurve(fit, iter = 2, tol = 0, verbose = FALSE)
+
+  expect_s3_class(fit, "mpcurve")
+  expect_equal(fit$measurement_sd, S, tolerance = 1e-12)
+  expect_equal(fit$fit$control$noise_model, "known_feature_sd")
+  expect_null(fit$params$sigma2)
+  expect_equal(fit_more$measurement_sd, S, tolerance = 1e-12)
+  expect_equal(fit_more$fit$control$noise_model, "known_feature_sd")
+  expect_null(fit_more$params$sigma2)
+  expect_gte(min(diff(fit_more$elbo_trace)), -1e-8)
 })
 
 test_that("greedy forward selection uses fixed-M comparison semantics", {

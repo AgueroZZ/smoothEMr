@@ -2,11 +2,40 @@ pandoc: '3.5'
 pkgdown: 2.2.0
 pkgdown_sha: ~
 articles:
+  internal/cavi_initialization_diagnostics: internal/cavi_initialization_diagnostics.html
+  internal/cavi_math_details: internal/cavi_math_details.html
+  internal/cavi_model_matched_sanity_check: internal/cavi_model_matched_sanity_check.html
+  internal/cavi_vs_csmooth_math: internal/cavi_vs_csmooth_math.html
+  internal/cavi_vs_csmooth_same_settings: internal/cavi_vs_csmooth_same_settings.html
+  internal/csmooth_em_intro: internal/csmooth_em_intro.html
+  internal/dual_ordering_method_comparison: internal/dual_ordering_method_comparison.html
+  internal/dual_ordering_soft_partition: internal/dual_ordering_soft_partition.html
+  internal/elife_fitness_analysis: internal/elife_fitness_analysis.html
+  internal/elife_greedy_dimension_analysis: internal/elife_greedy_dimension_analysis.html
   fitness: fitness.html
+  internal/four_ordering_similarity_metric_diagnostic: internal/four_ordering_similarity_metric_diagnostic.html
+  internal/initialization_upgrade_partition_report: internal/initialization_upgrade_partition_report.html
+  internal/intrinsic_dimension_selection_sanity_check: internal/intrinsic_dimension_selection_sanity_check.html
+  internal/Intro 2: internal/Intro 2.html
   Intro: Intro.html
+  internal/lambda_sd_prior_rate_behavior: internal/lambda_sd_prior_rate_behavior.html
+  internal/cluster_cols/linear_abs_correlation_blocks: internal/cluster_cols/linear_abs_correlation_blocks.html
+  internal/linear_dual_ordering_sanity_check: internal/linear_dual_ordering_sanity_check.html
+  internal/mixed_shape_dual_ordering_check: internal/mixed_shape_dual_ordering_check.html
+  internal/monotone_dual_ordering_sanity_check: internal/monotone_dual_ordering_sanity_check.html
+  internal/mpcurve_intro: internal/mpcurve_intro.html
   mpcurve_intro: mpcurve_intro.html
+  internal/partition_coherent_elbo_derivation: internal/partition_coherent_elbo_derivation.html
+  internal/partition_csmooth: internal/partition_csmooth.html
+  internal/partition_occam_penalty_note: internal/partition_occam_penalty_note.html
+  internal/partition: internal/partition.html
   partition: partition.html
-last_built: 2026-04-04T16:05Z
+  internal/cluster_cols/same_ordering_similarity_framework: internal/cluster_cols/same_ordering_similarity_framework.html
+  internal/similarity_initialization_monotone_report: internal/similarity_initialization_monotone_report.html
+  internal/similarity_initialization_partition_report: internal/similarity_initialization_partition_report.html
+  internal/soft_partition_cavi_vs_csmooth: internal/soft_partition_cavi_vs_csmooth.html
+  internal/three_ordering_similarity_metric_diagnostic: internal/three_ordering_similarity_metric_diagnostic.html
+last_built: 2026-04-07T02:56Z
 urls:
   reference: https://aguerozz.github.io/MPCurver/reference
   article: https://aguerozz.github.io/MPCurver/articles

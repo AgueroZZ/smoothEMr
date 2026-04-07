@@ -72,6 +72,74 @@
   )
 }
 
+.cavi_same_measurement_sd <- function(a, b) {
+  if (is.null(a) && is.null(b)) return(TRUE)
+  if (is.null(a) || is.null(b)) return(FALSE)
+
+  a_is_mat <- is.matrix(a)
+  b_is_mat <- is.matrix(b)
+  if (!identical(a_is_mat, b_is_mat)) return(FALSE)
+  if (a_is_mat && !identical(dim(a), dim(b))) return(FALSE)
+  isTRUE(all.equal(as.numeric(a), as.numeric(b), tolerance = 0, check.attributes = FALSE))
+}
+
+.cavi_measurement_sd_range <- function(S) {
+  if (is.null(S)) return(c(NA_real_, NA_real_))
+  rng <- range(as.numeric(S), na.rm = TRUE)
+  if (length(rng) != 2L || !all(is.finite(rng))) c(NA_real_, NA_real_) else rng
+}
+
+.cavi_resolve_measurement_sd <- function(S,
+                                         X,
+                                         caller = "cavi()",
+                                         sd_floor = sqrt(.Machine$double.eps)) {
+  X <- as.matrix(X)
+  n <- nrow(X)
+  d <- ncol(X)
+
+  if (is.null(S)) {
+    return(list(
+      measurement_sd = NULL,
+      sd_mat = NULL,
+      var_mat = NULL,
+      noise_model = "estimated_feature_variance"
+    ))
+  }
+
+  if (is.matrix(S)) {
+    S_mat <- as.matrix(S)
+    if (!all(dim(S_mat) == c(n, d))) {
+      stop(caller, ": matrix S must have the same dimensions as X (n x d).", call. = FALSE)
+    }
+    if (any(!is.finite(S_mat)) || any(S_mat < 0)) {
+      stop(caller, ": S must contain only finite nonnegative values.", call. = FALSE)
+    }
+    S_mat <- pmax(S_mat, sd_floor)
+    return(list(
+      measurement_sd = S_mat,
+      sd_mat = S_mat,
+      var_mat = S_mat^2,
+      noise_model = "known_observation_sd"
+    ))
+  }
+
+  S_vec <- as.numeric(S)
+  if (length(S_vec) != d) {
+    stop(caller, ": S must be NULL, a length-d vector, or an n x d matrix.", call. = FALSE)
+  }
+  if (any(!is.finite(S_vec)) || any(S_vec < 0)) {
+    stop(caller, ": S must contain only finite nonnegative values.", call. = FALSE)
+  }
+  S_vec <- pmax(S_vec, sd_floor)
+  S_mat <- matrix(rep(S_vec, each = n), nrow = n, ncol = d)
+  list(
+    measurement_sd = S_vec,
+    sd_mat = S_mat,
+    var_mat = S_mat^2,
+    noise_model = "known_feature_sd"
+  )
+}
+
 
 #' Simulate a toy dataset from the current single-ordering CAVI model
 #'
@@ -181,6 +249,11 @@ simulate_cavi_toy <- function(n = 150,
 #' @param responsibilities_init Optional initial responsibility matrix (\eqn{n \times K}).
 #' @param pi_init Optional initial mixture proportions.
 #' @param sigma2_init Optional initial feature-specific variances.
+#' @param S Optional known measurement standard deviations. If \code{NULL},
+#'   the current feature-specific variance inference is used. If a length-\code{d}
+#'   vector, each feature uses a known shared standard deviation across
+#'   observations. If an \code{n x d} matrix, each observation-feature pair uses
+#'   its own known standard deviation.
 #' @param lambda_init Optional initial feature-specific smoothness vector.
 #' @param rw_q Random-walk order for the prior precision along components.
 #' @param ridge Ridge added to \code{Q_K}.
@@ -204,6 +277,7 @@ simulate_cavi_toy <- function(n = 150,
 #'   \item \code{$params}: current \code{pi}, \code{mu}, and \code{sigma2}
 #'   \item \code{$posterior}: Gaussian posterior summaries for feature trajectories
 #'   \item \code{$gamma}: cell-by-component responsibilities
+#'   \item \code{$measurement_sd}: optional known measurement SD specification
 #'   \item \code{$lambda_vec}: feature-specific smoothness parameters
 #'   \item \code{$elbo_trace}: the monotone variational objective used for diagnostics
 #'   \item \code{$loglik_trace}: a plug-in observed log-likelihood diagnostic
@@ -215,6 +289,7 @@ cavi <- function(X,
                  responsibilities_init = NULL,
                  pi_init = NULL,
                  sigma2_init = NULL,
+                 S = NULL,
                  lambda_init = NULL,
                  rw_q = 2L,
                  ridge = 0,
@@ -330,17 +405,26 @@ cavi <- function(X,
   }
   pi_vec <- pi_vec / sum(pi_vec)
 
-  sigma2 <- if (!is.null(sigma2_init)) {
-    tmp <- as.numeric(sigma2_init)
-    if (length(tmp) == 1L) tmp <- rep(tmp, d)
-    if (length(tmp) != d) stop("sigma2_init must have length 1 or ncol(X).")
-    pmin(pmax(tmp, sigma_min), sigma_max)
-  } else if (raw_gamma_preinit) {
-    raw_init$sigma2_raw
-  } else if (!is.null(params0)) {
-    pmin(pmax(as.numeric(params0$sigma2), sigma_min), sigma_max)
+  noise_info <- .cavi_resolve_measurement_sd(S = S, X = X, caller = "cavi()")
+  if (!is.null(noise_info$measurement_sd) && !is.null(sigma2_init)) {
+    stop("sigma2_init cannot be supplied when S is non-NULL.", call. = FALSE)
+  }
+
+  sigma2 <- if (is.null(noise_info$measurement_sd)) {
+    if (!is.null(sigma2_init)) {
+      tmp <- as.numeric(sigma2_init)
+      if (length(tmp) == 1L) tmp <- rep(tmp, d)
+      if (length(tmp) != d) stop("sigma2_init must have length 1 or ncol(X).")
+      pmin(pmax(tmp, sigma_min), sigma_max)
+    } else if (raw_gamma_preinit) {
+      raw_init$sigma2_raw
+    } else if (!is.null(params0)) {
+      pmin(pmax(as.numeric(params0$sigma2), sigma_min), sigma_max)
+    } else {
+      pmin(pmax(apply(X, 2, stats::var), sigma_min), sigma_max)
+    }
   } else {
-    pmin(pmax(apply(X, 2, stats::var), sigma_min), sigma_max)
+    NULL
   }
 
   lambda_vec <- if (raw_gamma_preinit) {
@@ -414,6 +498,40 @@ cavi <- function(X,
     )
   }
 
+  .update_q_u_known <- function(R, lambda_vec, var_mat) {
+    m_mat <- matrix(0, nrow = d, ncol = K)
+    sdiag_mat <- matrix(0, nrow = d, ncol = K)
+    S_list <- vector("list", d)
+    logdetS <- numeric(d)
+    eq_quad <- numeric(d)
+
+    for (j in seq_len(d)) {
+      inv_vj <- 1 / var_mat[, j]
+      diag_j <- as.numeric(crossprod(inv_vj, R))
+      A_j <- diag(diag_j, K, K) + lambda_vec[j] * Q_K
+      A_j <- 0.5 * (A_j + t(A_j))
+      L_j <- chol(A_j)
+      S_j <- chol2inv(L_j)
+      rhs_j <- as.numeric(crossprod(inv_vj * X[, j], R))
+      y_j <- forwardsolve(t(L_j), rhs_j)
+      m_j <- as.numeric(backsolve(L_j, y_j))
+
+      S_list[[j]] <- S_j
+      m_mat[j, ] <- m_j
+      sdiag_mat[j, ] <- diag(S_j)
+      logdetS[j] <- -2 * sum(log(diag(L_j)))
+      eq_quad[j] <- as.numeric(crossprod(m_j, Q_K %*% m_j) + sum(Q_K * S_j))
+    }
+
+    list(
+      m_mat = m_mat,
+      sdiag_mat = sdiag_mat,
+      S_list = S_list,
+      logdetS = logdetS,
+      eq_quad = eq_quad
+    )
+  }
+
   .update_r <- function(q_u, pi_vec, sigma2) {
     m_mat     <- q_u$m_mat      # d x K
     sdiag_mat <- q_u$sdiag_mat  # d x K
@@ -429,6 +547,24 @@ cavi <- function(X,
 
     const_sigma <- sum(log(2 * base::pi * sigma2))
     log_r <- rep(log(pmax(pi_vec, 1e-300)), each = n) - 0.5 * (const_sigma + quad_mat)
+
+    lse <- matrixStats::rowLogSumExps(log_r)
+    exp(log_r - lse)
+  }
+
+  .update_r_known <- function(q_u, pi_vec, var_mat) {
+    m_mat <- q_u$m_mat
+    sdiag_mat <- q_u$sdiag_mat
+    inv_var_mat <- 1 / var_mat
+    const_row <- rowSums(log(2 * base::pi * var_mat))
+    log_r <- matrix(0, nrow = n, ncol = K)
+
+    for (k in seq_len(K)) {
+      diff_k <- sweep(X, 2, m_mat[, k], "-")
+      quad_det <- rowSums(inv_var_mat * diff_k^2)
+      quad_unc <- drop(inv_var_mat %*% sdiag_mat[, k])
+      log_r[, k] <- log(pmax(pi_vec[k], 1e-300)) - 0.5 * (const_row + quad_det + quad_unc)
+    }
 
     lse <- matrixStats::rowLogSumExps(log_r)
     exp(log_r - lse)
@@ -498,6 +634,37 @@ cavi <- function(X,
     as.numeric(log_pi_term + entropy_z + lik_term + prior_term + lambda_penalty + entropy_u)
   }
 
+  .compute_elbo_known <- function(R, pi_vec, lambda_vec, q_u, var_mat) {
+    m_mat <- q_u$m_mat
+    sdiag_mat <- q_u$sdiag_mat
+    inv_var_mat <- 1 / var_mat
+
+    log_pi_term <- sum(R * rep(log(pmax(pi_vec, 1e-300)), each = n))
+    entropy_z <- -sum(R * log(R + 1e-300))
+
+    const_row <- rowSums(log(2 * base::pi * var_mat))
+    lik_term <- 0
+    for (k in seq_len(K)) {
+      diff_k <- sweep(X, 2, m_mat[, k], "-")
+      quad_det <- rowSums(inv_var_mat * diff_k^2)
+      quad_unc <- drop(inv_var_mat %*% sdiag_mat[, k])
+      lik_term <- lik_term - 0.5 * sum(R[, k] * (const_row + quad_det + quad_unc))
+    }
+
+    prior_term <- 0.5 * sum(
+      r_rank * (log(lambda_vec) - log(2 * base::pi)) +
+        logdet_Q - lambda_vec * q_u$eq_quad
+    )
+    lambda_penalty <- sum(.lambda_sd_prior_terms(
+      lambda_vec = lambda_vec,
+      rate = lambda_sd_prior_rate,
+      include_constant = TRUE
+    ))
+    entropy_u <- 0.5 * sum(K * log(2 * base::pi * exp(1)) + q_u$logdetS)
+
+    as.numeric(log_pi_term + entropy_z + lik_term + prior_term + lambda_penalty + entropy_u)
+  }
+
   .compute_observed_loglik <- function(q_u, pi_vec, sigma2) {
     m_mat  <- q_u$m_mat   # d x K
     inv_s2 <- 1 / sigma2  # d-vector
@@ -514,51 +681,115 @@ cavi <- function(X,
     sum(matrixStats::rowLogSumExps(logdens))
   }
 
-  q_u <- .update_q_u(R, sigma2, lambda_vec)
-  elbo_trace <- .compute_elbo(R, pi_vec, sigma2, lambda_vec, q_u)
-  loglik_trace <- .compute_observed_loglik(q_u, pi_vec, sigma2)
+  .compute_observed_loglik_known <- function(q_u, pi_vec, var_mat) {
+    m_mat <- q_u$m_mat
+    inv_var_mat <- 1 / var_mat
+    const_row <- rowSums(log(2 * base::pi * var_mat))
+    logdens <- matrix(0, nrow = n, ncol = K)
+
+    for (k in seq_len(K)) {
+      diff_k <- sweep(X, 2, m_mat[, k], "-")
+      quad_det <- rowSums(inv_var_mat * diff_k^2)
+      logdens[, k] <- log(pmax(pi_vec[k], 1e-300)) - 0.5 * (const_row + quad_det)
+    }
+
+    sum(matrixStats::rowLogSumExps(logdens))
+  }
+
   lambda_trace <- list(lambda_vec)
-  sigma2_trace <- list(sigma2)
   pi_trace <- list(pi_vec)
   converged <- FALSE
 
-  if (max_iter > 0L) {
-    for (iter in seq_len(max_iter)) {
-      R <- .update_r(q_u, pi_vec, sigma2)
-      pi_vec <- pmax(colMeans(R), .Machine$double.eps)
-      pi_vec <- pi_vec / sum(pi_vec)
-      sigma2 <- .update_sigma2(R, q_u)
-      if (!fix_lambda) lambda_vec <- .update_lambda(q_u)
-      q_u <- .update_q_u(R, sigma2, lambda_vec)
+  if (is.null(noise_info$measurement_sd)) {
+    q_u <- .update_q_u(R, sigma2, lambda_vec)
+    elbo_trace <- .compute_elbo(R, pi_vec, sigma2, lambda_vec, q_u)
+    loglik_trace <- .compute_observed_loglik(q_u, pi_vec, sigma2)
+    sigma2_trace <- list(sigma2)
 
-      elbo_new <- .compute_elbo(R, pi_vec, sigma2, lambda_vec, q_u)
-      loglik_new <- .compute_observed_loglik(q_u, pi_vec, sigma2)
-      elbo_trace <- c(elbo_trace, elbo_new)
-      loglik_trace <- c(loglik_trace, loglik_new)
-      lambda_trace[[length(lambda_trace) + 1L]] <- lambda_vec
-      sigma2_trace[[length(sigma2_trace) + 1L]] <- sigma2
-      pi_trace[[length(pi_trace) + 1L]] <- pi_vec
+    if (max_iter > 0L) {
+      for (iter in seq_len(max_iter)) {
+        R <- .update_r(q_u, pi_vec, sigma2)
+        pi_vec <- pmax(colMeans(R), .Machine$double.eps)
+        pi_vec <- pi_vec / sum(pi_vec)
+        sigma2 <- .update_sigma2(R, q_u)
+        if (!fix_lambda) lambda_vec <- .update_lambda(q_u)
+        q_u <- .update_q_u(R, sigma2, lambda_vec)
 
-      delta <- elbo_trace[length(elbo_trace)] - elbo_trace[length(elbo_trace) - 1L]
-      rel_delta <- delta / (abs(elbo_trace[length(elbo_trace) - 1L]) + 1)
+        elbo_new <- .compute_elbo(R, pi_vec, sigma2, lambda_vec, q_u)
+        loglik_new <- .compute_observed_loglik(q_u, pi_vec, sigma2)
+        elbo_trace <- c(elbo_trace, elbo_new)
+        loglik_trace <- c(loglik_trace, loglik_new)
+        lambda_trace[[length(lambda_trace) + 1L]] <- lambda_vec
+        sigma2_trace[[length(sigma2_trace) + 1L]] <- sigma2
+        pi_trace[[length(pi_trace) + 1L]] <- pi_vec
 
-      if (verbose) {
-        cat(sprintf(
-          "[cavi %3d] ELBO=%.6f  delta=%.3e  sigma2=[%.3g, %.3g]  lambda=[%.3g, %.3g]\n",
-          iter, elbo_new, delta, min(sigma2), max(sigma2), min(lambda_vec), max(lambda_vec)
-        ))
+        delta <- elbo_trace[length(elbo_trace)] - elbo_trace[length(elbo_trace) - 1L]
+        rel_delta <- delta / (abs(elbo_trace[length(elbo_trace) - 1L]) + 1)
+
+        if (verbose) {
+          cat(sprintf(
+            "[cavi %3d] ELBO=%.6f  delta=%.3e  sigma2=[%.3g, %.3g]  lambda=[%.3g, %.3g]\n",
+            iter, elbo_new, delta, min(sigma2), max(sigma2), min(lambda_vec), max(lambda_vec)
+          ))
+        }
+
+        if (delta < -1e-8) {
+          warning(
+            sprintf("ELBO decreased by %.3e at iteration %d.", delta, iter),
+            call. = FALSE
+          )
+        }
+
+        if (delta >= 0 && abs(rel_delta) < tol) {
+          converged <- TRUE
+          break
+        }
       }
+    }
+  } else {
+    var_mat <- noise_info$var_mat
+    q_u <- .update_q_u_known(R, lambda_vec, var_mat)
+    elbo_trace <- .compute_elbo_known(R, pi_vec, lambda_vec, q_u, var_mat)
+    loglik_trace <- .compute_observed_loglik_known(q_u, pi_vec, var_mat)
+    sigma2_trace <- list()
 
-      if (delta < -1e-8) {
-        warning(
-          sprintf("ELBO decreased by %.3e at iteration %d.", delta, iter),
-          call. = FALSE
-        )
-      }
+    if (max_iter > 0L) {
+      for (iter in seq_len(max_iter)) {
+        R <- .update_r_known(q_u, pi_vec, var_mat)
+        pi_vec <- pmax(colMeans(R), .Machine$double.eps)
+        pi_vec <- pi_vec / sum(pi_vec)
+        if (!fix_lambda) lambda_vec <- .update_lambda(q_u)
+        q_u <- .update_q_u_known(R, lambda_vec, var_mat)
 
-      if (delta >= 0 && abs(rel_delta) < tol) {
-        converged <- TRUE
-        break
+        elbo_new <- .compute_elbo_known(R, pi_vec, lambda_vec, q_u, var_mat)
+        loglik_new <- .compute_observed_loglik_known(q_u, pi_vec, var_mat)
+        elbo_trace <- c(elbo_trace, elbo_new)
+        loglik_trace <- c(loglik_trace, loglik_new)
+        lambda_trace[[length(lambda_trace) + 1L]] <- lambda_vec
+        pi_trace[[length(pi_trace) + 1L]] <- pi_vec
+
+        delta <- elbo_trace[length(elbo_trace)] - elbo_trace[length(elbo_trace) - 1L]
+        rel_delta <- delta / (abs(elbo_trace[length(elbo_trace) - 1L]) + 1)
+
+        if (verbose) {
+          rng_sd <- .cavi_measurement_sd_range(noise_info$measurement_sd)
+          cat(sprintf(
+            "[cavi %3d] ELBO=%.6f  delta=%.3e  known_sd=[%.3g, %.3g]  lambda=[%.3g, %.3g]\n",
+            iter, elbo_new, delta, rng_sd[1], rng_sd[2], min(lambda_vec), max(lambda_vec)
+          ))
+        }
+
+        if (delta < -1e-8) {
+          warning(
+            sprintf("ELBO decreased by %.3e at iteration %d.", delta, iter),
+            call. = FALSE
+          )
+        }
+
+        if (delta >= 0 && abs(rel_delta) < tol) {
+          converged <- TRUE
+          break
+        }
       }
     }
   }
@@ -573,6 +804,7 @@ cavi <- function(X,
     list(
       params = params,
       gamma = R,
+      measurement_sd = noise_info$measurement_sd,
       posterior = list(
         mean = q_u$m_mat,
         cov = q_u$S_list,
@@ -592,6 +824,7 @@ cavi <- function(X,
       converged = converged,
       control = list(
         modelName = "homoskedastic",
+        noise_model = noise_info$noise_model,
         adaptive = if (fix_lambda) "fixed_lambda" else "variational",
         method = method,
         discretization = discretization,
@@ -639,6 +872,9 @@ cavi <- function(X,
 #'   value stored in the original fit's \code{$control}. An explicit \code{0}
 #'   is treated as "no penalty" for backward compatibility and does not
 #'   represent a literal exponential prior with rate zero.
+#' @param S Optional known measurement standard deviations. If omitted,
+#'   \code{do_cavi()} reuses the value stored on \code{object}. Supplying a new
+#'   \code{S} is only allowed when it exactly matches the stored specification.
 #' @param sigma_min,sigma_max Optional bounds for \code{sigma_j^2}. If
 #'   \code{NULL}, reuse the values stored in the original fit's
 #'   \code{$control}.
@@ -653,6 +889,7 @@ do_cavi <- function(object,
                     tol = NULL,
                     lambda = NULL,
                     lambda_sd_prior_rate = NULL,
+                    S = NULL,
                     lambda_min = NULL,
                     lambda_max = NULL,
                     sigma_min = NULL,
@@ -695,6 +932,19 @@ do_cavi <- function(object,
   }
   smin_use <- if (is.null(sigma_min))  object$control$sigma_min  %||% 1e-10 else as.numeric(sigma_min)
   smax_use <- if (is.null(sigma_max))  object$control$sigma_max  %||% 1e10  else as.numeric(sigma_max)
+  stored_S <- object$measurement_sd %||% NULL
+  if (is.null(S)) {
+    S_use <- stored_S
+  } else {
+    if (is.null(stored_S)) {
+      stop("This fit was created without S; refit with S instead of adding it in do_cavi().",
+           call. = FALSE)
+    }
+    if (!.cavi_same_measurement_sd(stored_S, S)) {
+      stop("Supplied S does not match the measurement_sd stored on object.", call. = FALSE)
+    }
+    S_use <- S
+  }
 
   updated <- cavi(
     X = object$data,
@@ -706,6 +956,7 @@ do_cavi <- function(object,
     ),
     pi_init = object$params$pi,
     sigma2_init = object$params$sigma2,
+    S = S_use,
     lambda_init = lambda_init_use,
     rw_q = object$rw_q %||% 2L,
     ridge = object$control$ridge %||% 0,
@@ -760,12 +1011,19 @@ do_cavi <- function(object,
 print.cavi <- function(x, ...) {
   last_elbo <- if (length(x$elbo_trace)) tail(x$elbo_trace, 1L) else NA_real_
   last_ll <- if (length(x$loglik_trace)) tail(x$loglik_trace, 1L) else NA_real_
+  noise_model <- x$control$noise_model %||% "estimated_feature_variance"
   cat("cavi fit\n")
   cat(sprintf("  n=%d, d=%d, K=%d\n", nrow(x$data), ncol(x$data), length(x$params$pi)))
   cat(sprintf("  iter=%d, converged=%s\n", x$iter, if (isTRUE(x$converged)) "yes" else "no"))
   cat(sprintf("  ELBO(last)=%.6f\n", last_elbo))
   if (is.finite(last_ll)) cat(sprintf("  logLik(last)=%.6f\n", last_ll))
-  cat(sprintf("  sigma2 range=[%.3g, %.3g]\n", min(x$params$sigma2), max(x$params$sigma2)))
+  if (identical(noise_model, "estimated_feature_variance")) {
+    cat(sprintf("  sigma2 range=[%.3g, %.3g]\n", min(x$params$sigma2), max(x$params$sigma2)))
+  } else {
+    rng_sd <- .cavi_measurement_sd_range(x$measurement_sd)
+    cat(sprintf("  noise model=%s\n", noise_model))
+    cat(sprintf("  known sd range=[%.3g, %.3g]\n", rng_sd[1], rng_sd[2]))
+  }
   cat(sprintf("  lambda range=[%.3g, %.3g]\n", min(x$lambda_vec), max(x$lambda_vec)))
   invisible(x)
 }
@@ -806,6 +1064,15 @@ summary.cavi <- function(object, ...) {
   }
 
   pi_hat <- object$params$pi %||% numeric(0)
+  noise_model <- object$control$noise_model %||% "estimated_feature_variance"
+  sigma2_vals <- object$params$sigma2
+  sigma2_range <- if (identical(noise_model, "estimated_feature_variance") &&
+                        !is.null(sigma2_vals) && length(sigma2_vals) > 0L) {
+    range(sigma2_vals, na.rm = TRUE)
+  } else {
+    c(NA_real_, NA_real_)
+  }
+  known_sd_range <- .cavi_measurement_sd_range(object$measurement_sd)
 
   out <- list(
     n = if (!is.null(object$data)) nrow(object$data) else NA_integer_,
@@ -814,6 +1081,7 @@ summary.cavi <- function(object, ...) {
     iter = object$iter %||% (length(elbo_trace) - 1L),
     converged = isTRUE(object$converged),
     modelName = object$control$modelName %||% "homoskedastic",
+    noise_model = noise_model,
     rw_q = object$rw_q %||% NA_integer_,
     init_method = object$control$method %||% NA_character_,
     discretization = object$control$discretization %||% NA_character_,
@@ -831,10 +1099,13 @@ summary.cavi <- function(object, ...) {
     pi_min = if (length(pi_hat)) min(pi_hat) else NA_real_,
     pi_max = if (length(pi_hat)) max(pi_hat) else NA_real_,
     Nk = if (!is.null(object$gamma)) colSums(object$gamma) else numeric(0),
-    sigma2_type = "vector(d)",
-    sigma2_range = range(object$params$sigma2, na.rm = TRUE),
-    sigma2_min = min(object$params$sigma2, na.rm = TRUE),
-    sigma2_max = max(object$params$sigma2, na.rm = TRUE),
+    sigma2_type = if (identical(noise_model, "estimated_feature_variance")) "vector(d)" else "not_estimated",
+    sigma2_range = sigma2_range,
+    sigma2_min = sigma2_range[1],
+    sigma2_max = sigma2_range[2],
+    known_sd_range = known_sd_range,
+    known_sd_min = known_sd_range[1],
+    known_sd_max = known_sd_range[2],
     lambda_range = range(object$lambda_vec, na.rm = TRUE),
     lambda_min = min(object$lambda_vec, na.rm = TRUE),
     lambda_max = max(object$lambda_vec, na.rm = TRUE),
@@ -856,6 +1127,8 @@ print.summary.cavi <- function(x, ...) {
   cat(sprintf("  model = %s, RW(q) = %s\n",
               ifelse(is.na(x$modelName), "?", x$modelName),
               ifelse(is.na(x$rw_q), "?", x$rw_q)))
+  cat(sprintf("  noise model = %s\n",
+              ifelse(is.null(x$noise_model) || is.na(x$noise_model), "?", x$noise_model)))
   cat(sprintf("  init = %s, discretization = %s, adaptive = %s\n",
               ifelse(is.na(x$init_method), "?", x$init_method),
               ifelse(is.na(x$discretization), "?", x$discretization),
@@ -872,9 +1145,15 @@ print.summary.cavi <- function(x, ...) {
   cat(sprintf("  pi range = [%s, %s]\n",
               format(x$pi_min, digits = 4),
               format(x$pi_max, digits = 4)))
-  cat(sprintf("  sigma2 range = [%s, %s]\n",
-              format(x$sigma2_range[1], digits = 4),
-              format(x$sigma2_range[2], digits = 4)))
+  if (identical(x$noise_model, "estimated_feature_variance")) {
+    cat(sprintf("  sigma2 range = [%s, %s]\n",
+                format(x$sigma2_range[1], digits = 4),
+                format(x$sigma2_range[2], digits = 4)))
+  } else {
+    cat(sprintf("  known sd range = [%s, %s]\n",
+                format(x$known_sd_range[1], digits = 4),
+                format(x$known_sd_range[2], digits = 4)))
+  }
   cat(sprintf("  lambda range = [%s, %s]\n",
               format(x$lambda_range[1], digits = 4),
               format(x$lambda_range[2], digits = 4)))

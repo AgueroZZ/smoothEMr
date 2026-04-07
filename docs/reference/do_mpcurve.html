@@ -15,7 +15,7 @@ assignment-prior controls."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">MPCurver</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -32,10 +32,12 @@ assignment-prior controls."></head><body>
     <li><a class="dropdown-item" href="../articles/partition.html">Feature Partitioning with MPCurver</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Case studies</h6></li>
-    <li><a class="dropdown-item" href="../articles/fitness.html">Analysis on the eLife Fitness Dataset using MPCurver</a></li>
+    <li><a class="dropdown-item" href="../articles/fitness.html">Analyzing the eLife Fitness Dataset with MPCurver</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Legacy</h6></li>
     <li><a class="dropdown-item" href="../articles/Intro.html">Introduction to MPCurver</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -66,6 +68,7 @@ assignment-prior controls.</p>
 <span>  <span class="va">object</span>,</span>
 <span>  iter <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  lambda <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  S <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  tol <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda_sd_prior_rate <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda_min <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -101,6 +104,12 @@ ordering) or exact <code>T = 1</code> partition steps.</p></dd>
 <dt id="arg-lambda">lambda<a class="anchor" aria-label="anchor" href="#arg-lambda"></a></dt>
 <dd><p>Optional scalar or d-vector. For single-ordering CAVI only:
 fix <code>lambda_j</code> at this value for the continuation run.</p></dd>
+
+
+<dt id="arg-s">S<a class="anchor" aria-label="anchor" href="#arg-s"></a></dt>
+<dd><p>Optional known measurement standard deviations. If <code>NULL</code>,
+reuse the value stored on <code>object</code>. Supplying a new <code>S</code> is only
+allowed when it matches the stored specification.</p></dd>
 
 
 <dt id="arg-tol">tol<a class="anchor" aria-label="anchor" href="#arg-tol"></a></dt>

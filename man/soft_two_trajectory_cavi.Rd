@@ -6,6 +6,7 @@
 \usage{
 soft_two_trajectory_cavi(
   X,
+  S = NULL,
   fit1_init = NULL,
   fit2_init = NULL,
   init_method = c("score", "mincor", "random_split"),

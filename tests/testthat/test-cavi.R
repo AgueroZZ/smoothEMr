@@ -346,3 +346,112 @@ test_that("adaptive lambda initialization respects the induced prior when reques
   expect_equal(fit$control$lambda_sd_prior_rate, 0.8)
   expect_equal(fit$lambda_vec, lambda_expected, tolerance = 1e-10)
 })
+
+test_that("cavi supports known feature-wise measurement sd", {
+  sim <- simulate_cavi_toy(
+    n = 90,
+    d = 7,
+    K = 5,
+    rw_q = 2,
+    seed = 41
+  )
+  S <- seq(0.09, 0.15, length.out = ncol(sim$X))
+
+  fit <- cavi(
+    sim$X,
+    K = 5,
+    method = "PCA",
+    S = S,
+    rw_q = 2,
+    max_iter = 8,
+    tol = 0,
+    verbose = FALSE
+  )
+
+  expect_s3_class(fit, "cavi")
+  expect_equal(fit$control$noise_model, "known_feature_sd")
+  expect_equal(fit$measurement_sd, S, tolerance = 1e-12)
+  expect_null(fit$params$sigma2)
+  expect_length(fit$sigma2_trace, 0L)
+  expect_equal(rowSums(fit$gamma), rep(1, nrow(sim$X)), tolerance = 1e-8)
+  expect_gte(min(diff(fit$elbo_trace)), -1e-8)
+})
+
+test_that("known feature-sd vector and repeated matrix inputs are equivalent", {
+  sim <- simulate_cavi_toy(
+    n = 60,
+    d = 6,
+    K = 5,
+    rw_q = 2,
+    seed = 42
+  )
+  gamma_init <- matrix(0, nrow = nrow(sim$X), ncol = 5)
+  gamma_init[cbind(seq_len(nrow(sim$X)), sim$z)] <- 1
+  S_vec <- seq(0.08, 0.14, length.out = ncol(sim$X))
+  S_mat <- matrix(rep(S_vec, each = nrow(sim$X)), nrow = nrow(sim$X), ncol = ncol(sim$X))
+
+  fit_vec <- cavi(
+    sim$X,
+    K = 5,
+    responsibilities_init = gamma_init,
+    pi_init = colMeans(gamma_init),
+    S = S_vec,
+    lambda_init = rep(3, ncol(sim$X)),
+    fix_lambda = TRUE,
+    rw_q = 2,
+    max_iter = 3,
+    tol = 0,
+    verbose = FALSE
+  )
+  fit_mat <- cavi(
+    sim$X,
+    K = 5,
+    responsibilities_init = gamma_init,
+    pi_init = colMeans(gamma_init),
+    S = S_mat,
+    lambda_init = rep(3, ncol(sim$X)),
+    fix_lambda = TRUE,
+    rw_q = 2,
+    max_iter = 3,
+    tol = 0,
+    verbose = FALSE
+  )
+
+  expect_equal(fit_vec$gamma, fit_mat$gamma, tolerance = 1e-10)
+  expect_equal(fit_vec$posterior$mean, fit_mat$posterior$mean, tolerance = 1e-10)
+  expect_equal(fit_vec$elbo_trace, fit_mat$elbo_trace, tolerance = 1e-10)
+})
+
+test_that("do_cavi reuses known observation-level measurement sd", {
+  sim <- simulate_cavi_toy(
+    n = 50,
+    d = 5,
+    K = 4,
+    rw_q = 2,
+    seed = 43
+  )
+  base_sd <- seq(0.07, 0.11, length.out = ncol(sim$X))
+  row_scale <- seq(1, 1.15, length.out = nrow(sim$X))
+  S <- outer(row_scale, base_sd)
+
+  fit0 <- cavi(
+    sim$X,
+    K = 4,
+    method = "PCA",
+    S = S,
+    rw_q = 2,
+    max_iter = 0,
+    verbose = FALSE
+  )
+  fit1 <- do_cavi(fit0, iter = 2, tol = 0, verbose = FALSE)
+
+  expect_equal(dim(fit1$measurement_sd), dim(S))
+  expect_equal(fit1$measurement_sd, S, tolerance = 1e-12)
+  expect_equal(fit1$control$noise_model, "known_observation_sd")
+  expect_null(fit1$params$sigma2)
+  expect_gte(min(diff(fit1$elbo_trace)), -1e-8)
+  expect_error(
+    do_cavi(fit0, iter = 1, S = S * 1.01, verbose = FALSE),
+    "does not match"
+  )
+})

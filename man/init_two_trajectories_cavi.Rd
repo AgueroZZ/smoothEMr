@@ -6,6 +6,7 @@
 \usage{
 init_two_trajectories_cavi(
   X,
+  S = NULL,
   method = c("score", "mincor", "random_split"),
   method1 = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
   K = NULL,

@@ -10,6 +10,7 @@ do_cavi(
   tol = NULL,
   lambda = NULL,
   lambda_sd_prior_rate = NULL,
+  S = NULL,
   lambda_min = NULL,
   lambda_max = NULL,
   sigma_min = NULL,
@@ -34,6 +35,10 @@ exponential prior on \code{1 / sqrt(lambda_j)}. If \code{NULL}, reuse the
 value stored in the original fit's \code{$control}. An explicit \code{0}
 is treated as "no penalty" for backward compatibility and does not
 represent a literal exponential prior with rate zero.}
+
+\item{S}{Optional known measurement standard deviations. If omitted,
+\code{do_cavi()} reuses the value stored on \code{object}. Supplying a new
+\code{S} is only allowed when it exactly matches the stored specification.}
 
 \item{lambda_min, lambda_max}{Optional bounds for \code{lambda_j}. If
 \code{NULL}, reuse the values stored in the original fit's

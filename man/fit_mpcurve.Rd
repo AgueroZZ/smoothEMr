@@ -10,6 +10,7 @@ fit_mpcurve(
   K = NULL,
   rw_q = 2,
   lambda = 1,
+  S = NULL,
   fix_lambda = FALSE,
   iter = 100,
   tol = 1e-06,
@@ -35,7 +36,7 @@ fit_mpcurve(
   T_end = 1,
   n_outer = 25L,
   inner_iter = 1L,
-  max_converge_iter = 100L,
+  max_converge_iter = NULL,
   tol_outer = 1e-05,
   freeze_unused_ordering = TRUE,
   freeze_unused_ordering_threshold = 0.5,
@@ -61,6 +62,11 @@ returned. For partition fits, \code{length(method)} must be either 1 or
 
 \item{lambda}{Positive scalar initial value for \code{lambda_j} in the
 single-ordering CAVI fit.}
+
+\item{S}{Optional known measurement standard deviations. If a length-\code{d}
+vector, each feature uses a known shared standard deviation across
+observations. If an \code{n x d} matrix, each observation-feature pair uses
+its own known standard deviation.}
 
 \item{fix_lambda}{Logical; if \code{TRUE}, keep \code{lambda_j} fixed at the
 supplied initial value in the single-ordering CAVI fit.}
@@ -145,7 +151,7 @@ only: low-variance feature threshold used when building \code{S(X)}.}
 \item{inner_iter}{Number of weighted CAVI sweeps per annealing step.}
 
 \item{max_converge_iter}{Maximum number of exact \code{T = 1} partition
-iterations after annealing.}
+iterations after annealing. Defaults to \code{iter} when \code{NULL}.}
 
 \item{tol_outer}{Relative objective tolerance for partition phase-2
 convergence.}

@@ -6,6 +6,7 @@
 \usage{
 init_m_trajectories_cavi(
   X,
+  S = NULL,
   M = 2L,
   methods = NULL,
   pca_components = NULL,

@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">MPCurver</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -24,10 +24,12 @@
     <li><a class="dropdown-item" href="../articles/partition.html">Feature Partitioning with MPCurver</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Case studies</h6></li>
-    <li><a class="dropdown-item" href="../articles/fitness.html">Analysis on the eLife Fitness Dataset using MPCurver</a></li>
+    <li><a class="dropdown-item" href="../articles/fitness.html">Analyzing the eLife Fitness Dataset with MPCurver</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Legacy</h6></li>
     <li><a class="dropdown-item" href="../articles/Intro.html">Introduction to MPCurver</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -56,6 +58,7 @@
 <span>  tol <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda_sd_prior_rate <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  S <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda_min <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda_max <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  sigma_min <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -93,6 +96,12 @@ exponential prior on <code>1 / sqrt(lambda_j)</code>. If <code>NULL</code>, reus
 value stored in the original fit's <code>$control</code>. An explicit <code>0</code>
 is treated as "no penalty" for backward compatibility and does not
 represent a literal exponential prior with rate zero.</p></dd>
+
+
+<dt id="arg-s">S<a class="anchor" aria-label="anchor" href="#arg-s"></a></dt>
+<dd><p>Optional known measurement standard deviations. If omitted,
+<code>do_cavi()</code> reuses the value stored on <code>object</code>. Supplying a new
+<code>S</code> is only allowed when it exactly matches the stored specification.</p></dd>
 
 
 <dt id="arg-lambda-min-lambda-max">lambda_min, lambda_max<a class="anchor" aria-label="anchor" href="#arg-lambda-min-lambda-max"></a></dt>

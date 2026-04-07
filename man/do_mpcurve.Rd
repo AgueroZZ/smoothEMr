@@ -8,6 +8,7 @@ do_mpcurve(
   object,
   iter = 1,
   lambda = NULL,
+  S = NULL,
   tol = NULL,
   lambda_sd_prior_rate = NULL,
   lambda_min = NULL,
@@ -34,6 +35,10 @@ ordering) or exact \code{T = 1} partition steps.}
 
 \item{lambda}{Optional scalar or d-vector. For single-ordering CAVI only:
 fix \code{lambda_j} at this value for the continuation run.}
+
+\item{S}{Optional known measurement standard deviations. If \code{NULL},
+reuse the value stored on \code{object}. Supplying a new \code{S} is only
+allowed when it matches the stored specification.}
 
 \item{tol}{Optional relative ELBO tolerance for single-ordering CAVI. If
 \code{NULL}, reuse the stored value.}

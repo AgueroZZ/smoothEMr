@@ -23,6 +23,14 @@
   w
 }
 
+.cavi_subset_measurement_sd <- function(S, cols) {
+  if (is.null(S)) return(NULL)
+  if (is.matrix(S)) {
+    return(as.matrix(S)[, cols, drop = FALSE])
+  }
+  as.numeric(S)[cols]
+}
+
 .cavi_partition_order_labels <- function(M) {
   if (M <= 26L) LETTERS[seq_len(M)] else paste0("ord", seq_len(M))
 }
@@ -66,6 +74,28 @@
   x <- as.numeric(x)
   sigma2 <- mean((x - mean(x))^2)
   pmin(pmax(sigma2, sigma_min), sigma_max)
+}
+
+.cavi_constant_null_score_known <- function(x, measurement_sd) {
+  x <- as.numeric(x)
+  sd_vec <- pmax(as.numeric(measurement_sd), sqrt(.Machine$double.eps))
+  if (length(sd_vec) == 1L) sd_vec <- rep(sd_vec, length(x))
+  if (length(sd_vec) != length(x)) {
+    stop("measurement_sd must have length equal to length(x).")
+  }
+  var_vec <- sd_vec^2
+  prec_vec <- 1 / var_vec
+  mu_hat <- sum(prec_vec * x) / sum(prec_vec)
+  as.numeric(
+    -0.5 * (
+      sum(log(2 * base::pi * var_vec)) +
+        sum((x - mu_hat)^2 * prec_vec)
+    )
+  )
+}
+
+.cavi_constant_null_sigma2_known <- function(measurement_sd) {
+  mean(pmax(as.numeric(measurement_sd), sqrt(.Machine$double.eps))^2)
 }
 
 .compute_same_ordering_similarity_cor <- function(X,
@@ -157,6 +187,37 @@
   )
 }
 
+.cavi_binned_directional_stats_known <- function(x_cov, y, measurement_sd, K) {
+  bin_info <- .cavi_equal_width_bin_index(x_cov, K = K)
+  idx <- bin_info$bin_index
+  counts <- tabulate(idx, nbins = K)
+  sd_vec <- pmax(as.numeric(measurement_sd), sqrt(.Machine$double.eps))
+  if (length(sd_vec) == 1L) sd_vec <- rep(sd_vec, length(y))
+  if (length(sd_vec) != length(y)) {
+    stop("measurement_sd must have length equal to length(y).")
+  }
+  var_vec <- sd_vec^2
+  prec_vec <- 1 / var_vec
+
+  prec_sum <- numeric(K)
+  wy_sum <- numeric(K)
+  prec_grouped <- rowsum(matrix(prec_vec, ncol = 1L), group = idx, reorder = FALSE)
+  wy_grouped <- rowsum(matrix(prec_vec * as.numeric(y), ncol = 1L), group = idx, reorder = FALSE)
+  prec_sum[as.integer(rownames(prec_grouped))] <- prec_grouped[, 1]
+  wy_sum[as.integer(rownames(wy_grouped))] <- wy_grouped[, 1]
+
+  list(
+    bin_index = idx,
+    breaks = bin_info$breaks,
+    counts = as.numeric(counts),
+    prec_sum = as.numeric(prec_sum),
+    wy_sum = as.numeric(wy_sum),
+    wy_sq = sum((as.numeric(y)^2) * prec_vec),
+    log_const = sum(log(2 * base::pi * var_vec)),
+    n = length(y)
+  )
+}
+
 .cavi_smooth_fit_log_evidence <- function(stats,
                                           lambda,
                                           sigma2,
@@ -179,8 +240,30 @@
   )
 }
 
+.cavi_smooth_fit_log_evidence_known <- function(stats,
+                                                lambda,
+                                                Q_K,
+                                                logdet_Q,
+                                                rank_Q) {
+  K <- nrow(Q_K)
+  b <- stats$wy_sum
+  P <- lambda * Q_K + diag(stats$prec_sum, K)
+  chol_info <- .cavi_chol_with_jitter(P)
+  L <- chol_info$chol
+  alpha <- backsolve(L, forwardsolve(t(L), b))
+  logdet_P <- 2 * sum(log(diag(L)))
+  as.numeric(
+    -0.5 * stats$log_const +
+      0.5 * (rank_Q * log(lambda) + logdet_Q) -
+      0.5 * logdet_P -
+      0.5 * stats$wy_sq +
+      0.5 * sum(b * alpha)
+  )
+}
+
 .cavi_fit_directional_smooth_evidence <- function(x_cov,
                                                   y,
+                                                  measurement_sd = NULL,
                                                   K,
                                                   rw_q = 2L,
                                                   ridge = 0,
@@ -202,21 +285,47 @@
   Q_K <- make_random_walk_precision(K = K, d = 1, q = rw_q, lambda = 1, ridge = ridge)
   Q_K <- 0.5 * (as.matrix(Q_K) + t(as.matrix(Q_K)))
   prior_meta <- .rw_precision_metadata(Q_K, rw_q = rw_q)
-
-  null_sigma2 <- .cavi_constant_null_sigma2(y, sigma_min = sigma_min, sigma_max = sigma_max)
-  null_score <- .cavi_constant_null_score(y, sigma_min = sigma_min, sigma_max = sigma_max)
-  stats <- .cavi_binned_directional_stats(x_cov = x_cov, y = y, K = K)
+  has_known_sd <- !is.null(measurement_sd)
+  if (has_known_sd) {
+    measurement_sd <- pmax(as.numeric(measurement_sd), sqrt(.Machine$double.eps))
+    if (length(measurement_sd) == 1L) measurement_sd <- rep(measurement_sd, length(y))
+    if (length(measurement_sd) != length(y)) {
+      stop("measurement_sd must have length equal to length(y).")
+    }
+    null_sigma2 <- .cavi_constant_null_sigma2_known(measurement_sd)
+    null_score <- .cavi_constant_null_score_known(y, measurement_sd = measurement_sd)
+    stats <- .cavi_binned_directional_stats_known(
+      x_cov = x_cov,
+      y = y,
+      measurement_sd = measurement_sd,
+      K = K
+    )
+  } else {
+    null_sigma2 <- .cavi_constant_null_sigma2(y, sigma_min = sigma_min, sigma_max = sigma_max)
+    null_score <- .cavi_constant_null_score(y, sigma_min = sigma_min, sigma_max = sigma_max)
+    stats <- .cavi_binned_directional_stats(x_cov = x_cov, y = y, K = K)
+  }
   rate_val <- .lambda_sd_prior_rate_value(lambda_sd_prior_rate)
 
   score_at <- function(lambda, sigma2) {
-    .cavi_smooth_fit_log_evidence(
-      stats = stats,
-      lambda = lambda,
-      sigma2 = sigma2,
-      Q_K = Q_K,
-      logdet_Q = prior_meta$logdet,
-      rank_Q = prior_meta$rank
-    )
+    if (has_known_sd) {
+      .cavi_smooth_fit_log_evidence_known(
+        stats = stats,
+        lambda = lambda,
+        Q_K = Q_K,
+        logdet_Q = prior_meta$logdet,
+        rank_Q = prior_meta$rank
+      )
+    } else {
+      .cavi_smooth_fit_log_evidence(
+        stats = stats,
+        lambda = lambda,
+        sigma2 = sigma2,
+        Q_K = Q_K,
+        logdet_Q = prior_meta$logdet,
+        rank_Q = prior_meta$rank
+      )
+    }
   }
 
   objective_at <- function(lambda, sigma2) {
@@ -233,6 +342,60 @@
 
   lambda_init <- pmin(pmax(lambda_value, lambda_min), lambda_max)
   sigma_init <- null_sigma2
+
+  if (has_known_sd) {
+    if (identical(lambda_mode, "fixed")) {
+      log_evidence <- score_at(lambda = lambda_init, sigma2 = null_sigma2)
+      return(list(
+        log_evidence = as.numeric(log_evidence),
+        null_score = as.numeric(null_score),
+        delta = as.numeric(max(log_evidence - null_score, 0)),
+        lambda = as.numeric(lambda_init),
+        sigma2 = as.numeric(null_sigma2),
+        null_sigma2 = as.numeric(null_sigma2),
+        success = TRUE,
+        breaks = stats$breaks,
+        bin_counts = stats$counts
+      ))
+    }
+
+    opt_lambda <- tryCatch(
+      stats::optimize(
+        f = function(log_lambda) {
+          -objective_at(lambda = exp(log_lambda), sigma2 = null_sigma2)
+        },
+        interval = c(log(lambda_min), log(lambda_max))
+      ),
+      error = function(e) NULL
+    )
+    if (is.null(opt_lambda)) {
+      return(list(
+        log_evidence = as.numeric(null_score),
+        null_score = as.numeric(null_score),
+        delta = 0,
+        lambda = as.numeric(lambda_init),
+        sigma2 = as.numeric(null_sigma2),
+        null_sigma2 = as.numeric(null_sigma2),
+        success = FALSE,
+        breaks = stats$breaks,
+        bin_counts = stats$counts
+      ))
+    }
+
+    lambda_hat <- exp(opt_lambda$minimum)
+    log_evidence <- score_at(lambda = lambda_hat, sigma2 = null_sigma2)
+    return(list(
+      log_evidence = as.numeric(log_evidence),
+      null_score = as.numeric(null_score),
+      delta = as.numeric(max(log_evidence - null_score, 0)),
+      lambda = as.numeric(lambda_hat),
+      sigma2 = as.numeric(null_sigma2),
+      null_sigma2 = as.numeric(null_sigma2),
+      success = TRUE,
+      breaks = stats$breaks,
+      bin_counts = stats$counts
+    ))
+  }
 
   if (identical(lambda_mode, "fixed")) {
     opt_sigma <- stats::optimize(
@@ -303,6 +466,7 @@
 }
 
 .compute_same_ordering_similarity_smooth_fit <- function(X,
+                                                         S = NULL,
                                                          K,
                                                          rw_q = 2L,
                                                          ridge = 0,
@@ -327,15 +491,26 @@
 
   n <- nrow(X)
   d <- ncol(X)
+  noise_info <- .cavi_resolve_measurement_sd(S = S, X = X,
+                                             caller = ".compute_same_ordering_similarity_smooth_fit()")
   feature_names <- colnames(X) %||% paste0("V", seq_len(d))
   feature_sd <- apply(X, 2, stats::sd)
   low_variance <- !is.finite(feature_sd) | feature_sd < min_feature_sd
-  null_sigma2 <- vapply(seq_len(d), function(k) {
-    .cavi_constant_null_sigma2(X[, k], sigma_min = sigma_min, sigma_max = sigma_max)
-  }, numeric(1))
-  null_scores <- vapply(seq_len(d), function(k) {
-    .cavi_constant_null_score(X[, k], sigma_min = sigma_min, sigma_max = sigma_max)
-  }, numeric(1))
+  if (is.null(noise_info$measurement_sd)) {
+    null_sigma2 <- vapply(seq_len(d), function(k) {
+      .cavi_constant_null_sigma2(X[, k], sigma_min = sigma_min, sigma_max = sigma_max)
+    }, numeric(1))
+    null_scores <- vapply(seq_len(d), function(k) {
+      .cavi_constant_null_score(X[, k], sigma_min = sigma_min, sigma_max = sigma_max)
+    }, numeric(1))
+  } else {
+    null_sigma2 <- vapply(seq_len(d), function(k) {
+      .cavi_constant_null_sigma2_known(noise_info$sd_mat[, k])
+    }, numeric(1))
+    null_scores <- vapply(seq_len(d), function(k) {
+      .cavi_constant_null_score_known(X[, k], measurement_sd = noise_info$sd_mat[, k])
+    }, numeric(1))
+  }
   lambda_default <- pmin(pmax(as.numeric(smooth_fit_lambda_value)[1], lambda_min), lambda_max)
 
   if (d == 1L) {
@@ -406,6 +581,7 @@
         .cavi_fit_directional_smooth_evidence(
           x_cov = X[, j],
           y = X[, k],
+          measurement_sd = if (is.null(noise_info$measurement_sd)) NULL else noise_info$sd_mat[, k],
           K = K,
           rw_q = rw_q,
           ridge = ridge,
@@ -470,6 +646,7 @@
 }
 
 .compute_same_ordering_similarity <- function(X,
+                                              S = NULL,
                                               metric = c("spearman", "pearson", "smooth_fit"),
                                               use = "pairwise.complete.obs",
                                               abs_value = TRUE,
@@ -501,6 +678,7 @@
   }
   .compute_same_ordering_similarity_smooth_fit(
     X = X,
+    S = S,
     K = as.integer(K)[1],
     rw_q = rw_q,
     ridge = ridge,
@@ -573,6 +751,7 @@
 }
 
 .cavi_similarity_subset_fit <- function(X_sub,
+                                        S = NULL,
                                         K,
                                         method,
                                         pca_component = 1L,
@@ -604,6 +783,7 @@
     fit <- .cavi_build_from_ordering(
       X = X_sub,
       ordering_vec = ordering_vec,
+      S = S,
       K = K,
       rw_q = rw_q,
       ridge = ridge,
@@ -642,6 +822,7 @@
   fit_try <- tryCatch(
     .cavi_fit_from_method(
       X = X_sub,
+      S = S,
       method = method,
       pca_component = pca_component,
       K = K,
@@ -667,6 +848,7 @@
     fit_try <- tryCatch(
       .cavi_fit_from_method(
         X = X_sub,
+        S = S,
         method = "PCA",
         pca_component = 1L,
         K = K,
@@ -690,6 +872,7 @@
       fit_try <- .cavi_build_from_ordering(
         X = X_sub,
         ordering_vec = ordering_vec,
+        S = S,
         K = K,
         rw_q = rw_q,
         ridge = ridge,
@@ -727,6 +910,7 @@
 }
 
 .cavi_init_m_trajectories_similarity <- function(X,
+                                                 S = NULL,
                                                  M = 2L,
                                                  methods = NULL,
                                                  pca_components = NULL,
@@ -741,7 +925,7 @@
                                                  sigma_min = 1e-10,
                                                  sigma_max = 1e10,
                                                  discretization = c("quantile", "equal", "kmeans"),
-                                                 num_iter = 5L,
+                                                 num_iter = 0L,
                                                  similarity_metric = c("spearman", "pearson", "smooth_fit"),
                                                  cluster_linkage = "single",
                                                  similarity_min_feature_sd = 1e-8,
@@ -778,6 +962,7 @@
 
   similarity <- .compute_same_ordering_similarity(
     X = X,
+    S = S,
     metric = similarity_metric,
     min_feature_sd = similarity_min_feature_sd,
     K = K_use,
@@ -804,6 +989,7 @@
     cols_m <- cluster_info$cluster_members[[m]]
     subset_res <- .cavi_similarity_subset_fit(
       X_sub = X[, cols_m, drop = FALSE],
+      S = .cavi_subset_measurement_sd(S, cols_m),
       K = K_use,
       method = method_info$methods[m],
       pca_component = method_info$pca_components[m],
@@ -821,11 +1007,16 @@
       verbose = FALSE
     )
 
+    # Use max_iter = 0 to preserve the subset-specialized cell ordering R.
+    # Iterating on all d features without feature weights would corrupt the
+    # ordering (especially with known S where all features contribute equally).
+    # The partition CAVI loop (with feature weights) handles refinement.
     fits[[m]] <- cavi(
       X = X,
       K = length(subset_res$fit$params$pi),
       responsibilities_init = subset_res$fit$gamma,
       pi_init = colMeans(subset_res$fit$gamma),
+      S = S,
       rw_q = rw_q,
       ridge = ridge,
       lambda_sd_prior_rate = lambda_sd_prior_rate,
@@ -833,7 +1024,7 @@
       lambda_max = lambda_max,
       sigma_min = sigma_min,
       sigma_max = sigma_max,
-      max_iter = num_iter,
+      max_iter = 0L,
       tol = 1e-6,
       verbose = FALSE
     )
@@ -1165,6 +1356,7 @@
 
 .cavi_build_from_ordering <- function(X,
                                       ordering_vec,
+                                      S = NULL,
                                       K,
                                       rw_q = 2L,
                                       ridge = 0,
@@ -1200,12 +1392,12 @@
     )
   }
   gamma0 <- .cavi_hard_gamma_from_cluster_rank(init$cluster_rank, nrow(X), length(init$pi))
-  cavi(
+  cavi_args <- list(
     X = X,
     K = length(init$pi),
     responsibilities_init = gamma0,
     pi_init = init$pi,
-    sigma2_init = init$sigma2,
+    S = S,
     lambda_init = rep(lambda_init, ncol(X)),
     lambda_sd_prior_rate = lambda_sd_prior_rate,
     lambda_min = lambda_min,
@@ -1219,10 +1411,15 @@
     tol = tol,
     verbose = verbose
   )
+  if (is.null(S)) {
+    cavi_args$sigma2_init <- init$sigma2
+  }
+  do.call(cavi, cavi_args)
 }
 
 .fit_cavi_from_seed_col <- function(X,
                                     seed_col,
+                                    S = NULL,
                                     K,
                                     rw_q = 2L,
                                     ridge = 0,
@@ -1240,6 +1437,7 @@
   .cavi_build_from_ordering(
     X = X,
     ordering_vec = ordering_vec,
+    S = S,
     K = K,
     rw_q = rw_q,
     ridge = ridge,
@@ -1258,6 +1456,7 @@
 }
 
 .cavi_rebuild_subset <- function(X_sub,
+                                 S = NULL,
                                  K = NULL,
                                  rw_q = 2L,
                                  ridge = 0,
@@ -1276,6 +1475,7 @@
       X = X_sub,
       K = K,
       method = method,
+      S = S,
       rw_q = rw_q,
       ridge = ridge,
       lambda_init = rep(lambda_init, ncol(X_sub)),
@@ -1288,12 +1488,12 @@
 
   gamma_init <- as.matrix(gamma_init)
   K_use <- ncol(gamma_init)
-  cavi(
+  cavi_args <- list(
     X = X_sub,
     K = K_use,
     responsibilities_init = gamma_init,
     pi_init = colMeans(gamma_init),
-    sigma2_init = pmax(apply(X_sub, 2, stats::var), 1e-10),
+    S = S,
     lambda_init = rep(lambda_init, ncol(X_sub)),
     lambda_sd_prior_rate = lambda_sd_prior_rate,
     rw_q = rw_q,
@@ -1302,6 +1502,10 @@
     tol = tol,
     verbose = verbose
   )
+  if (is.null(S)) {
+    cavi_args$sigma2_init <- pmax(apply(X_sub, 2, stats::var), 1e-10)
+  }
+  do.call(cavi, cavi_args)
 }
 
 .cavi_prepare_weighted_metadata <- function(K, rw_q, Q_K) {
@@ -1336,6 +1540,7 @@
 }
 
 .cavi_update_q_u_weighted <- function(X, R, sigma2, lambda_vec, Q_K,
+                                      measurement_sd = NULL,
                                       feature_weights, rw_q = 2L,
                                       feature_active = NULL,
                                       q_u_current = NULL) {
@@ -1355,9 +1560,17 @@
     stop("q_u_current must be supplied when feature_active contains FALSE.")
   }
 
-  Nk <- colSums(R)
-  Nk[Nk < 1e-8] <- 1e-8
-  GX <- t(X) %*% R
+  noise_info <- .cavi_resolve_measurement_sd(
+    S = measurement_sd,
+    X = X,
+    caller = ".cavi_update_q_u_weighted()"
+  )
+  use_known_sd <- !is.null(noise_info$measurement_sd)
+  if (!use_known_sd) {
+    Nk <- colSums(R)
+    Nk[Nk < 1e-8] <- 1e-8
+    GX <- t(X) %*% R
+  }
 
   m_mat <- matrix(0, nrow = d, ncol = K)
   sdiag_mat <- matrix(0, nrow = d, ncol = K)
@@ -1374,13 +1587,20 @@
       eq_quad[j] <- q_u_current$eq_quad[j]
       next
     }
-    A_j <- w[j] * diag(as.numeric(Nk / sigma2[j]), K, K) +
-      lambda_vec[j] * Q_K
+    if (use_known_sd) {
+      inv_vj <- w[j] / noise_info$var_mat[, j]
+      diag_j <- as.numeric(crossprod(inv_vj, R))
+      A_j <- diag(diag_j, K, K) + lambda_vec[j] * Q_K
+      rhs_j <- as.numeric(crossprod(inv_vj * X[, j], R))
+    } else {
+      A_j <- w[j] * diag(as.numeric(Nk / sigma2[j]), K, K) +
+        lambda_vec[j] * Q_K
+      rhs_j <- (w[j] * as.numeric(GX[j, ])) / sigma2[j]
+    }
     chol_info <- .cavi_chol_with_jitter(A_j)
     A_j <- chol_info$matrix
     L_j <- chol_info$chol
     S_j <- chol2inv(L_j)
-    rhs_j <- (w[j] * as.numeric(GX[j, ])) / sigma2[j]
     y_j <- forwardsolve(t(L_j), rhs_j)
     m_j <- as.numeric(backsolve(L_j, y_j))
 
@@ -1401,25 +1621,45 @@
   )
 }
 
-.cavi_update_r_weighted <- function(X, q_u, pi_vec, sigma2, feature_weights) {
+.cavi_update_r_weighted <- function(X, q_u, pi_vec, sigma2,
+                                    measurement_sd = NULL,
+                                    feature_weights) {
   X <- as.matrix(X)
   n <- nrow(X)
   d <- ncol(X)
   K <- length(pi_vec)
   w <- .cavi_resolve_feature_weights(feature_weights, d)
+  noise_info <- .cavi_resolve_measurement_sd(
+    S = measurement_sd,
+    X = X,
+    caller = ".cavi_update_r_weighted()"
+  )
 
   m_mat <- q_u$m_mat
   sdiag_mat <- q_u$sdiag_mat
 
   log_r <- matrix(0, nrow = n, ncol = K)
-  const_sigma <- sum(w * log(2 * base::pi * sigma2))
+  if (is.null(noise_info$measurement_sd)) {
+    const_sigma <- sum(w * log(2 * base::pi * sigma2))
+    inv_sigma2_w <- matrix(w / sigma2, n, d, byrow = TRUE)
+  } else {
+    inv_sigma2_w <- matrix(w, n, d, byrow = TRUE) / noise_info$var_mat
+    const_sigma <- rowSums(matrix(w, n, d, byrow = TRUE) *
+                             log(2 * base::pi * noise_info$var_mat))
+  }
 
   for (k in seq_len(K)) {
     diff_k <- sweep(X, 2, m_mat[, k], "-")
-    quad_det <- rowSums(matrix(w / sigma2, n, d, byrow = TRUE) * diff_k^2)
-    quad_unc <- sum((w * sdiag_mat[, k]) / sigma2)
-    log_r[, k] <- log(pmax(pi_vec[k], .Machine$double.eps)) -
-      0.5 * (const_sigma + quad_det + quad_unc)
+    quad_det <- rowSums(inv_sigma2_w * diff_k^2)
+    if (is.null(noise_info$measurement_sd)) {
+      quad_unc <- sum((w * sdiag_mat[, k]) / sigma2)
+      log_r[, k] <- log(pmax(pi_vec[k], .Machine$double.eps)) -
+        0.5 * (const_sigma + quad_det + quad_unc)
+    } else {
+      quad_unc <- drop(inv_sigma2_w %*% sdiag_mat[, k])
+      log_r[, k] <- log(pmax(pi_vec[k], .Machine$double.eps)) -
+        0.5 * (const_sigma + quad_det + quad_unc)
+    }
   }
 
   lse <- matrixStats::rowLogSumExps(log_r)
@@ -1428,6 +1668,7 @@
 
 .cavi_update_sigma2_weighted <- function(X, R, q_u,
                                          sigma2_current = NULL,
+                                         measurement_sd = NULL,
                                          sigma_min = 1e-10,
                                          sigma_max = 1e10,
                                          feature_weights = NULL,
@@ -1444,6 +1685,9 @@
   feature_active <- as.logical(feature_active)
   if (length(feature_active) != d) {
     stop("feature_active must have length d.")
+  }
+  if (!is.null(measurement_sd)) {
+    return(sigma2_current)
   }
 
   m_mat <- q_u$m_mat
@@ -1566,6 +1810,7 @@
     R = fit$gamma,
     q_u = q_u,
     sigma2 = fit$params$sigma2,
+    measurement_sd = fit$measurement_sd %||% NULL,
     lambda_vec = fit$lambda_vec,
     Q_K = fit$Q_K,
     rw_q = rw_q,
@@ -1964,6 +2209,7 @@
 }
 
 .cavi_feature_scores_from_state <- function(X, R, q_u, sigma2, lambda_vec,
+                                            measurement_sd = NULL,
                                             Q_K, rw_q = 2L,
                                             lambda_sd_prior_rate = NULL,
                                             include_prior = TRUE,
@@ -1983,6 +2229,11 @@
   prior_meta <- .rw_precision_metadata(Q_K, rw_q = rw_q)
   r_rank <- prior_meta$rank
   logdet_Q <- prior_meta$logdet
+  noise_info <- .cavi_resolve_measurement_sd(
+    S = measurement_sd,
+    X = X,
+    caller = ".cavi_feature_scores_from_state()"
+  )
 
   scores <- numeric(d)
   m_mat <- q_u$m_mat
@@ -1997,10 +2248,21 @@
       matrix(m_mat[j, ], nrow = n, ncol = K, byrow = TRUE)
     quad_jk <- colSums(R * (diff_j^2))
     unc_jk <- colSums(R) * sdiag_mat[j, ]
-    data_j <- -0.5 * sum(
-      colSums(R) * log(2 * base::pi * sigma2[j]) +
-        (quad_jk + unc_jk) / sigma2[j]
-    )
+    if (is.null(noise_info$measurement_sd)) {
+      data_j <- -0.5 * sum(
+        colSums(R) * log(2 * base::pi * sigma2[j]) +
+          (quad_jk + unc_jk) / sigma2[j]
+      )
+    } else {
+      var_j <- noise_info$var_mat[, j]
+      const_j <- sum(log(2 * base::pi * var_j))
+      unc_row_j <- rowSums(R * rep(sdiag_mat[j, ], each = n))
+      data_j <- -0.5 * (
+        const_j +
+          sum(rowSums(R * (diff_j^2) / var_j)) +
+          sum(unc_row_j / var_j)
+      )
+    }
 
     prior_j <- 0
     if (isTRUE(include_prior)) {
@@ -2029,6 +2291,7 @@
 .cavi_fixed_R_local_feature_fit <- function(xj,
                                             R,
                                             Q_K,
+                                            measurement_sd = NULL,
                                             rw_q = 2L,
                                             lambda_init = 1,
                                             lambda_sd_prior_rate = NULL,
@@ -2045,7 +2308,9 @@
   r_rank <- prior_meta$rank
   logdet_Q <- prior_meta$logdet
 
-  sigma2 <- if (is.null(sigma2_init)) {
+  sigma2 <- if (!is.null(measurement_sd)) {
+    NULL
+  } else if (is.null(sigma2_init)) {
     pmin(pmax(stats::var(as.numeric(xj)), sigma_min), sigma_max)
   } else {
     pmin(pmax(as.numeric(sigma2_init)[1], sigma_min), sigma_max)
@@ -2058,6 +2323,7 @@
       R = R,
       q_u = q_u,
       sigma2 = sigma2,
+      measurement_sd = measurement_sd,
       lambda_vec = lambda_j,
       Q_K = Q_K,
       rw_q = rw_q,
@@ -2075,6 +2341,7 @@
     sigma2 = sigma2,
     lambda_vec = lambda_j,
     Q_K = Q_K,
+    measurement_sd = measurement_sd,
     feature_weights = 1,
     rw_q = rw_q
   )
@@ -2086,6 +2353,7 @@
       R = R,
       q_u = q_u,
       sigma2_current = sigma2,
+      measurement_sd = measurement_sd,
       sigma_min = sigma_min,
       sigma_max = sigma_max,
       feature_weights = 1
@@ -2105,6 +2373,7 @@
       sigma2 = sigma2,
       lambda_vec = lambda_j,
       Q_K = Q_K,
+      measurement_sd = measurement_sd,
       feature_weights = 1,
       rw_q = rw_q
     )
@@ -2117,17 +2386,18 @@
     X = X1,
     R = R,
     q_u = q_u,
-      sigma2 = sigma2,
-      lambda_vec = lambda_j,
-      Q_K = Q_K,
-      rw_q = rw_q,
-      lambda_sd_prior_rate = lambda_sd_prior_rate,
-      include_prior = TRUE
-    )[1]
+    sigma2 = sigma2,
+    measurement_sd = measurement_sd,
+    lambda_vec = lambda_j,
+    Q_K = Q_K,
+    rw_q = rw_q,
+    lambda_sd_prior_rate = lambda_sd_prior_rate,
+    include_prior = TRUE
+  )[1]
 
   list(
     score = as.numeric(score),
-    sigma2 = as.numeric(sigma2),
+    sigma2 = if (is.null(sigma2)) NA_real_ else as.numeric(sigma2),
     lambda = as.numeric(lambda_j),
     q_u = q_u,
     elbo = as.numeric(elbo_prev),
@@ -2169,7 +2439,8 @@
   w_eff[!feature_active] <- 0
   R <- as.matrix(object$gamma)
   pi_vec <- as.numeric(object$params$pi)
-  sigma2 <- as.numeric(object$params$sigma2)
+  measurement_sd <- object$measurement_sd %||% NULL
+  sigma2 <- if (is.null(measurement_sd)) as.numeric(object$params$sigma2) else NULL
   lambda_vec <- as.numeric(object$lambda_vec)
   Q_K <- object$Q_K
   rw_q <- object$rw_q %||% 2L
@@ -2198,6 +2469,7 @@
     sigma2 = sigma2,
     lambda_vec = lambda_vec,
     Q_K = Q_K,
+    measurement_sd = measurement_sd,
     feature_weights = w_eff,
     rw_q = rw_q,
     feature_active = feature_active,
@@ -2210,6 +2482,7 @@
       R = R,
       q_u = q_u,
       sigma2 = sigma2,
+      measurement_sd = measurement_sd,
       lambda_vec = lambda_vec,
       Q_K = Q_K,
       rw_q = rw_q,
@@ -2244,6 +2517,7 @@
       q_u = q_u,
       pi_vec = pi_vec,
       sigma2 = sigma2,
+      measurement_sd = measurement_sd,
       feature_weights = w_eff
     )
     pi_vec <- pmax(colMeans(R), .Machine$double.eps)
@@ -2253,6 +2527,7 @@
       R = R,
       q_u = q_u,
       sigma2_current = sigma2,
+      measurement_sd = measurement_sd,
       sigma_min = sigma_min,
       sigma_max = sigma_max,
       feature_weights = w_eff,
@@ -2274,6 +2549,7 @@
       sigma2 = sigma2,
       lambda_vec = lambda_vec,
       Q_K = Q_K,
+      measurement_sd = measurement_sd,
       feature_weights = w_eff,
       rw_q = rw_q,
       feature_active = feature_active,
@@ -2306,6 +2582,7 @@
   out <- object
   out$params <- params
   out$gamma <- R
+  out$measurement_sd <- measurement_sd
   out$posterior <- list(
     mean = q_u$m_mat,
     cov = q_u$S_list,
@@ -2348,6 +2625,7 @@ score_features_onefit_cavi <- function(fit, X = NULL, include_prior = TRUE) {
     R = fit$gamma,
     q_u = q_u,
     sigma2 = fit$params$sigma2,
+    measurement_sd = fit$measurement_sd %||% NULL,
     lambda_vec = fit$lambda_vec,
     Q_K = fit$Q_K,
     rw_q = fit$rw_q %||% 2L,
@@ -2388,6 +2666,7 @@ partition_features_twofits_cavi <- function(fitA, fitB, X = NULL, delta = 0,
 }
 
 .cavi_fit_from_method <- function(X,
+                                  S = NULL,
                                   method,
                                   K,
                                   rw_q = 2L,
@@ -2411,6 +2690,7 @@ partition_features_twofits_cavi <- function(fitA, fitB, X = NULL, delta = 0,
       X = X,
       K = K,
       method = "random",
+      S = S,
       rw_q = rw_q,
       ridge = ridge,
       lambda_sd_prior_rate = lambda_sd_prior_rate,
@@ -2428,6 +2708,7 @@ partition_features_twofits_cavi <- function(fitA, fitB, X = NULL, delta = 0,
   .cavi_build_from_ordering(
     X = X,
     ordering_vec = ordering_result$t,
+    S = S,
     K = K,
     rw_q = rw_q,
     ridge = ridge,
@@ -2479,6 +2760,7 @@ partition_features_twofits_cavi <- function(fitA, fitB, X = NULL, delta = 0,
 #' @return A list with \code{fit1}, \code{fit2}, and \code{seed2}.
 #' @export
 init_two_trajectories_cavi <- function(X,
+                                       S = NULL,
                                        method = c("score", "mincor", "random_split"),
                                        method1 = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
                                        K = NULL,
@@ -2502,6 +2784,7 @@ init_two_trajectories_cavi <- function(X,
 
   fit1 <- .cavi_fit_from_method(
     X = X,
+    S = S,
     K = K_use,
     method = method1,
     rw_q = rw_q,
@@ -2523,6 +2806,7 @@ init_two_trajectories_cavi <- function(X,
     seed2 <- which.min(scores1)
     fit2 <- .fit_cavi_from_seed_col(
       X = X,
+      S = S,
       seed_col = seed2,
       K = K_use,
       rw_q = rw_q,
@@ -2545,6 +2829,7 @@ init_two_trajectories_cavi <- function(X,
     seed2 <- which.min(abs_cors)
     fit2 <- .fit_cavi_from_seed_col(
       X = X,
+      S = S,
       seed_col = seed2,
       K = K_use,
       rw_q = rw_q,
@@ -2566,6 +2851,7 @@ init_two_trajectories_cavi <- function(X,
     half2 <- sort(perm[(floor(d / 2) + 1):d])
     fit1_half <- .cavi_fit_from_method(
       X = X[, half1, drop = FALSE],
+      S = .cavi_subset_measurement_sd(S, half1),
       method = "PCA",
       pca_component = 1L,
       K = K_use,
@@ -2583,6 +2869,7 @@ init_two_trajectories_cavi <- function(X,
     )
     fit2_half <- .cavi_fit_from_method(
       X = X[, half2, drop = FALSE],
+      S = .cavi_subset_measurement_sd(S, half2),
       method = "PCA",
       pca_component = 1L,
       K = K_use,
@@ -2598,12 +2885,12 @@ init_two_trajectories_cavi <- function(X,
       strict_K = TRUE,
       verbose = FALSE
     )
-    fit1 <- cavi(
+    fit1_args <- list(
       X = X,
       K = K_use,
       responsibilities_init = fit1_half$gamma,
       pi_init = fit1_half$params$pi,
-      sigma2_init = pmax(apply(X, 2, stats::var), 1e-10),
+      S = S,
       lambda_init = rep(1, d),
       lambda_sd_prior_rate = lambda_sd_prior_rate,
       lambda_min = lambda_min,
@@ -2616,24 +2903,15 @@ init_two_trajectories_cavi <- function(X,
       max_iter = num_iter,
       verbose = FALSE
     )
-    fit2 <- cavi(
-      X = X,
-      K = K_use,
-      responsibilities_init = fit2_half$gamma,
-      pi_init = fit2_half$params$pi,
-      sigma2_init = pmax(apply(X, 2, stats::var), 1e-10),
-      lambda_init = rep(1, d),
-      lambda_sd_prior_rate = lambda_sd_prior_rate,
-      lambda_min = lambda_min,
-      lambda_max = lambda_max,
-      sigma_min = sigma_min,
-      sigma_max = sigma_max,
-      rw_q = rw_q,
-      ridge = ridge,
-      discretization = discretization,
-      max_iter = num_iter,
-      verbose = FALSE
-    )
+    fit2_args <- fit1_args
+    fit2_args$responsibilities_init <- fit2_half$gamma
+    fit2_args$pi_init <- fit2_half$params$pi
+    if (is.null(S)) {
+      fit1_args$sigma2_init <- pmax(apply(X, 2, stats::var), 1e-10)
+      fit2_args$sigma2_init <- fit1_args$sigma2_init
+    }
+    fit1 <- do.call(cavi, fit1_args)
+    fit2 <- do.call(cavi, fit2_args)
   }
 
   if (isTRUE(verbose)) {
@@ -2711,6 +2989,7 @@ init_two_trajectories_cavi <- function(X,
 #'   directional \code{lambda} and \code{sigma^2} estimates.
 #' @export
 init_m_trajectories_cavi <- function(X,
+                                     S = NULL,
                                      M = 2L,
                                      methods = NULL,
                                      pca_components = NULL,
@@ -2742,6 +3021,7 @@ init_m_trajectories_cavi <- function(X,
   if (identical(partition_init, "similarity")) {
     return(.cavi_init_m_trajectories_similarity(
       X = X,
+      S = S,
       M = M,
       methods = methods,
       pca_components = pca_components,
@@ -2791,6 +3071,7 @@ init_m_trajectories_cavi <- function(X,
     method_m <- methods[m]
     fits[[m]] <- .cavi_fit_from_method(
       X = X,
+      S = S,
       method = method_m,
       pca_component = pca_components[m],
       K = K_use,
@@ -3443,6 +3724,7 @@ init_m_trajectories_cavi <- function(X,
 #'   cross-\code{M} comparison.
 #' @export
 soft_partition_cavi <- function(X,
+                                S = NULL,
                                 M = 2L,
                                 fits_init = NULL,
                                 init_methods = NULL,
@@ -3517,7 +3799,7 @@ soft_partition_cavi <- function(X,
   # Initialize fits
   if (is.null(fits_init)) {
     inits <- init_m_trajectories_cavi(
-      X = X, M = M,
+      X = X, S = S, M = M,
       methods = init_methods,
       pca_components = pca_components,
       partition_init = partition_init,
@@ -3551,10 +3833,35 @@ soft_partition_cavi <- function(X,
     fits <- fits_init
   }
 
+  stored_partition_S <- fits[[1]]$measurement_sd %||% NULL
+  if (is.null(S)) {
+    partition_measurement_sd <- stored_partition_S
+  } else {
+    if (!is.null(stored_partition_S) && !.cavi_same_measurement_sd(stored_partition_S, S)) {
+      stop("Supplied S does not match the measurement_sd stored on fits_init.", call. = FALSE)
+    }
+    partition_measurement_sd <- S
+  }
+  for (m in seq_len(M)) {
+    fit_S <- fits[[m]]$measurement_sd %||% NULL
+    if (!.cavi_same_measurement_sd(fit_S, partition_measurement_sd)) {
+      stop("All fits in fits_init must share the same measurement_sd specification.", call. = FALSE)
+    }
+  }
+  partition_noise_info <- .cavi_resolve_measurement_sd(
+    S = partition_measurement_sd,
+    X = X,
+    caller = "soft_partition_cavi()"
+  )
+
   fits <- lapply(fits, function(fit) {
+    fit$measurement_sd <- partition_measurement_sd
     fit$control <- utils::modifyList(
       fit$control %||% list(),
-      list(lambda_sd_prior_rate = lambda_sd_prior_rate)
+      list(
+        lambda_sd_prior_rate = lambda_sd_prior_rate,
+        noise_model = partition_noise_info$noise_model
+      )
     )
     fit
   })
@@ -3733,6 +4040,7 @@ soft_partition_cavi <- function(X,
 
   structure(
     list(
+      measurement_sd = partition_measurement_sd,
       pi_weights = pi_weights,
       effective_pi_weights = effective_pi_weights,
       assign = ord_labels[max.col(pi_weights, ties.method = "first")],
@@ -3756,6 +4064,7 @@ soft_partition_cavi <- function(X,
       feature_events = feature_events,
       assignment_posterior = assignment_posterior,
       control = list(
+        noise_model = partition_noise_info$noise_model,
         lambda_sd_prior_rate = lambda_sd_prior_rate,
         assignment_prior = assignment_ctl$assignment_prior,
         ordering_alpha = assignment_ctl$ordering_alpha,
@@ -3840,6 +4149,7 @@ soft_partition_cavi <- function(X,
 #'   \code{\link{soft_partition_cavi}}.
 #' @export
 soft_two_trajectory_cavi <- function(X,
+                                     S = NULL,
                                      fit1_init = NULL,
                                      fit2_init = NULL,
                                      init_method = c("score", "mincor", "random_split"),
@@ -3881,7 +4191,7 @@ soft_two_trajectory_cavi <- function(X,
   } else if (!is.null(fit1_init) || !is.null(fit2_init)) {
     # One provided, one not — use old init path
     inits <- init_two_trajectories_cavi(
-      X = X, method = init_method, method1 = init_method1,
+      X = X, S = S, method = init_method, method1 = init_method1,
       K = K, rw_q = rw_q, ridge = ridge,
       lambda_sd_prior_rate = lambda_sd_prior_rate,
       lambda_min = lambda_min, lambda_max = lambda_max,
@@ -3896,7 +4206,7 @@ soft_two_trajectory_cavi <- function(X,
   } else {
     # Both NULL — use old init strategy then pass to soft_partition_cavi
     inits <- init_two_trajectories_cavi(
-      X = X, method = init_method, method1 = init_method1,
+      X = X, S = S, method = init_method, method1 = init_method1,
       K = K, rw_q = rw_q, ridge = ridge,
       lambda_sd_prior_rate = lambda_sd_prior_rate,
       lambda_min = lambda_min, lambda_max = lambda_max,
@@ -3908,7 +4218,7 @@ soft_two_trajectory_cavi <- function(X,
   }
 
   soft_partition_cavi(
-    X = X, M = 2L,
+    X = X, S = S, M = 2L,
     fits_init = fits_init,
     K = K,
     discretization = discretization,
