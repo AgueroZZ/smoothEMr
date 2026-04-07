@@ -5,12 +5,12 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Analysis on the eLife Fitness Dataset using MPCurver • MPCurver</title>
+<title>Analyzing the eLife Fitness Dataset with MPCurver • MPCurver</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Analysis on the eLife Fitness Dataset using MPCurver">
+<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Analyzing the eLife Fitness Dataset with MPCurver">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">MPCurver</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,10 +39,12 @@
     <li><a class="dropdown-item" href="../articles/partition.html">Feature Partitioning with MPCurver</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Case studies</h6></li>
-    <li><a class="dropdown-item" href="../articles/fitness.html">Analysis on the eLife Fitness Dataset using MPCurver</a></li>
+    <li><a class="dropdown-item" href="../articles/fitness.html">Analyzing the eLife Fitness Dataset with MPCurver</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Legacy</h6></li>
     <li><a class="dropdown-item" href="../articles/Intro.html">Introduction to MPCurver</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul>
 </li>
       </ul>
@@ -63,11 +65,8 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
-      <h1>Analysis on the eLife Fitness Dataset using MPCurver</h1>
-                        <h4 data-toc-skip class="author">Vignette
-Author</h4>
+      <h1>Analyzing the eLife Fitness Dataset with MPCurver</h1>
             
-            <h4 data-toc-skip class="date">2026-04-04</h4>
       
 
       <div class="d-none name"><code>fitness.rmd</code></div>
@@ -78,25 +77,143 @@ Author</h4>
 <div class="section level2">
 <h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
 </h2>
-<p>This note revisits the eLife fitness dataset using the current
-unified interface in <code>MPCurver</code>, with a specific focus on
-<strong>learning the number of latent ordering systems</strong>.</p>
-<p>We now keep the workflow intentionally simple:</p>
+<p>This vignette shows how to use the public <code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</a></code>
+interface on the eLife fitness dataset. The goal is not just to produce
+a fit, but to explain the modeling logic step by step.</p>
+<p>We will use <code>MPCurver</code> to answer three practical
+questions:</p>
+<ol style="list-style-type: decimal">
+<li>Can a single latent ordering explain mutant fitness across
+environments?</li>
+<li>If we encourage smoother trajectories, do we keep the same ordering
+while improving interpretability?</li>
+<li>Do the data support multiple ordering systems, or does a single
+ordering remain sufficient once we account for measurement error?</li>
+</ol>
+<p>The recommended workflow throughout is the default <code>cavi</code>
+backend exposed by <code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</a></code>.</p>
+</div>
+<div class="section level2">
+<h2 id="load-package-and-data">Load package and data<a class="anchor" aria-label="anchor" href="#load-package-and-data"></a>
+</h2>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"MPCurver"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">MPCurver</span><span class="op">)</span></span>
+<span><span class="op">}</span> <span class="kw">else</span> <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"devtools"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/load_all.html" class="external-link">load_all</a></span><span class="op">(</span><span class="st">"."</span>, quiet <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span>  <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"Need either an installed MPCurver package or devtools::load_all()."</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">locate_elife_csv</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">pkg_path</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"extdata"</span>, <span class="st">"elife-61271-fig2-data1-v2.csv"</span>, package <span class="op">=</span> <span class="st">"MPCurver"</span><span class="op">)</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nzchar</a></span><span class="op">(</span><span class="va">pkg_path</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/files.html" class="external-link">file.exists</a></span><span class="op">(</span><span class="va">pkg_path</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="va">pkg_path</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span></span>
+<span>  <span class="va">src_path</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="st">"inst"</span>, <span class="st">"extdata"</span>, <span class="st">"elife-61271-fig2-data1-v2.csv"</span><span class="op">)</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/files.html" class="external-link">file.exists</a></span><span class="op">(</span><span class="va">src_path</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="va">src_path</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span></span>
+<span>  <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"Could not locate elife-61271-fig2-data1-v2.csv."</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">csv_path</span> <span class="op">&lt;-</span> <span class="fu">locate_elife_csv</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">dat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv</a></span><span class="op">(</span><span class="va">csv_path</span>, check.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">fitness_cols</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">grep</a></span><span class="op">(</span><span class="st">"_fitness$"</span>, <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">dat</span><span class="op">)</span>, value <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">error_cols</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">grep</a></span><span class="op">(</span><span class="st">"_error$"</span>, <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">dat</span><span class="op">)</span>, value <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">X</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">dat</span><span class="op">[</span>, <span class="va">fitness_cols</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/mode.html" class="external-link">mode</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="st">"numeric"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">sub</a></span><span class="op">(</span><span class="st">"_fitness$"</span>, <span class="st">""</span>, <span class="va">fitness_cols</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">S</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">dat</span><span class="op">[</span>, <span class="va">error_cols</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/mode.html" class="external-link">mode</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="st">"numeric"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">sub</a></span><span class="op">(</span><span class="st">"_error$"</span>, <span class="st">""</span>, <span class="va">error_cols</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">meta</span> <span class="op">&lt;-</span> <span class="va">dat</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"barcode"</span>, <span class="st">"gene"</span>, <span class="st">"type"</span>, <span class="st">"ploidy"</span>, <span class="st">"class"</span>, <span class="st">"mutation_type"</span><span class="op">)</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span></span></code></pre></div>
+<p>Just using the error columns as the true SEs might be too risky, so
+we will adjust the SEs using t-statistics-adjustment:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">t_adjust_se</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">Y</span>, <span class="va">S</span>, <span class="va">nu</span>, <span class="va">tol</span> <span class="op">=</span> <span class="fl">1e-12</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">is.matrix</a></span><span class="op">(</span><span class="va">Y</span><span class="op">)</span> <span class="op">||</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric</a></span><span class="op">(</span><span class="va">Y</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"`Y` must be a numeric matrix."</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">is.matrix</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span> <span class="op">||</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"`S` must be a numeric matrix."</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">Y</span><span class="op">)</span> <span class="op">==</span> <span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"`Y` and `S` must have the same dimensions."</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/any.html" class="external-link">any</a></span><span class="op">(</span><span class="va">S</span> <span class="op">&lt;</span> <span class="fl">0</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"`S` must be nonnegative."</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span>  </span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">nu</span><span class="op">)</span> <span class="op">==</span> <span class="fl">1L</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric</a></span><span class="op">(</span><span class="va">nu</span><span class="op">)</span> <span class="op">||</span> <span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">nu</span><span class="op">)</span> <span class="op">||</span> <span class="va">nu</span> <span class="op">&lt;=</span> <span class="fl">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span>      <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"`nu` must be a positive number."</span><span class="op">)</span></span>
+<span>    <span class="op">}</span></span>
+<span>    <span class="va">nu_mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="va">nu</span>, nrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">Y</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">Y</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span>    <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">is.matrix</a></span><span class="op">(</span><span class="va">nu</span><span class="op">)</span> <span class="op">||</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric</a></span><span class="op">(</span><span class="va">nu</span><span class="op">)</span> <span class="op">||</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">nu</span><span class="op">)</span> <span class="op">==</span> <span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">Y</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>      <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"`nu` must be either a positive scalar or a numeric matrix with the same dimensions as `Y`."</span><span class="op">)</span></span>
+<span>    <span class="op">}</span></span>
+<span>    <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/any.html" class="external-link">any</a></span><span class="op">(</span><span class="va">nu</span> <span class="op">&lt;=</span> <span class="fl">0</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>      <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"All entries of `nu` must be positive."</span><span class="op">)</span></span>
+<span>    <span class="op">}</span></span>
+<span>    <span class="va">nu_mat</span> <span class="op">&lt;-</span> <span class="va">nu</span></span>
+<span>  <span class="op">}</span></span>
+<span>  </span>
+<span>  <span class="va">z_t</span> <span class="op">&lt;-</span> <span class="va">Y</span> <span class="op">/</span> <span class="va">S</span></span>
+<span>  </span>
+<span>  <span class="co"># Main calculation:</span></span>
+<span>  <span class="co"># S_tilde = S * z_t / qnorm(pt(z_t, df = nu))</span></span>
+<span>  <span class="va">p_t</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/TDist.html" class="external-link">pt</a></span><span class="op">(</span><span class="va">z_t</span>, df <span class="op">=</span> <span class="va">nu_mat</span><span class="op">)</span></span>
+<span>  <span class="va">z_n</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">qnorm</a></span><span class="op">(</span><span class="va">p_t</span><span class="op">)</span></span>
+<span>  </span>
+<span>  <span class="va">S_tilde</span> <span class="op">&lt;-</span> <span class="va">S</span> <span class="op">*</span> <span class="va">z_t</span> <span class="op">/</span> <span class="va">z_n</span></span>
+<span>  </span>
+<span>  <span class="co"># Numerical fix for z_t close to 0:</span></span>
+<span>  <span class="co"># limit of z / qnorm(pt(z, df=nu)) as z -&gt; 0 is dnorm(0) / dt(0, df=nu)</span></span>
+<span>  <span class="va">near_zero</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/is.finite.html" class="external-link">is.finite</a></span><span class="op">(</span><span class="va">z_t</span><span class="op">)</span> <span class="op">&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">z_t</span><span class="op">)</span> <span class="op">&lt;</span> <span class="va">tol</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/any.html" class="external-link">any</a></span><span class="op">(</span><span class="va">near_zero</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">limit_factor</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">dnorm</a></span><span class="op">(</span><span class="fl">0</span><span class="op">)</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/stats/TDist.html" class="external-link">dt</a></span><span class="op">(</span><span class="fl">0</span>, df <span class="op">=</span> <span class="va">nu_mat</span><span class="op">[</span><span class="va">near_zero</span><span class="op">]</span><span class="op">)</span></span>
+<span>    <span class="va">S_tilde</span><span class="op">[</span><span class="va">near_zero</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">S</span><span class="op">[</span><span class="va">near_zero</span><span class="op">]</span> <span class="op">*</span> <span class="va">limit_factor</span></span>
+<span>  <span class="op">}</span></span>
+<span>  </span>
+<span>  <span class="co"># Preserve zeros</span></span>
+<span>  <span class="va">zero_se</span> <span class="op">&lt;-</span> <span class="op">(</span><span class="va">S</span> <span class="op">==</span> <span class="fl">0</span><span class="op">)</span> <span class="op">&amp;</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/any.html" class="external-link">any</a></span><span class="op">(</span><span class="va">zero_se</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">S_tilde</span><span class="op">[</span><span class="va">zero_se</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fl">0</span></span>
+<span>  <span class="op">}</span></span>
+<span>  </span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/dimnames.html" class="external-link">dimnames</a></span><span class="op">(</span><span class="va">S_tilde</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/dimnames.html" class="external-link">dimnames</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span></span>
+<span>  <span class="va">S_tilde</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">S</span> <span class="op">&lt;-</span> <span class="fu">t_adjust_se</span><span class="op">(</span><span class="va">X</span>, <span class="va">S</span>, nu <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
+<p>In this dataset:</p>
 <ul>
-<li>use <code>isomap</code> as the initialization method;</li>
-<li>set <code>K = 50</code>;</li>
+<li>each row is a mutant;</li>
+<li>each column is an environment;</li>
+<li>each matrix entry is a fitness score;</li>
+<li>and the paired <code>*_error</code> columns provide
+observation-level measurement standard deviations that we can optionally
+pass to <code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</a></code> via <code>S</code>.</li>
 </ul>
 </div>
 <div class="section level2">
-<h2 id="first-look-at-the-data">First look at the data:<a class="anchor" aria-label="anchor" href="#first-look-at-the-data"></a>
+<h2 id="first-look-at-the-data">First look at the data<a class="anchor" aria-label="anchor" href="#first-look-at-the-data"></a>
 </h2>
-<p>Take a look at the number of mutants and environments.</p>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>    quantity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mutants"</span>, <span class="st">"environments"</span>, <span class="st">"fitness columns"</span>, <span class="st">"error columns"</span><span class="op">)</span>,</span>
-<span>    value <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">fitness_cols</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">error_cols</span><span class="op">)</span><span class="op">)</span></span>
+<span>  quantity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mutants"</span>, <span class="st">"environments"</span>, <span class="st">"fitness columns"</span>, <span class="st">"error columns"</span><span class="op">)</span>,</span>
+<span>  value <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">fitness_cols</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">error_cols</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>    <span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<span>  <span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <table class="table">
 <thead><tr class="header">
 <th align="left">quantity</th>
@@ -121,11 +238,12 @@ unified interface in <code>MPCurver</code>, with a specific focus on
 </tr>
 </tbody>
 </table>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">env_category</span><span class="op">)</span>, decreasing <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>    <span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/setNames.html" class="external-link">setNames</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"category"</span>, <span class="st">"n_environments"</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>    <span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">env_category</span><span class="op">)</span>, decreasing <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/setNames.html" class="external-link">setNames</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"category"</span>, <span class="st">"n_environments"</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <table class="table">
 <thead><tr class="header">
 <th align="left">category</th>
@@ -158,103 +276,605 @@ unified interface in <code>MPCurver</code>, with a specific focus on
 </tr>
 </tbody>
 </table>
+<p>This is a good MPCurver example because the environments span several
+broad condition types, while the mutants are shared across all columns.
+That makes it natural to ask whether the same latent mutant ordering
+explains every environment, or whether different subsets of environments
+prefer different orderings.</p>
 </div>
 <div class="section level2">
-<h2 id="initial-fit-of-a-mpcurver">Initial fit of a MPCurver<a class="anchor" aria-label="anchor" href="#initial-fit-of-a-mpcurver"></a>
+<h2 id="step-1-fit-a-single-ordering-mpcurve">Step 1: Fit a single-ordering MPCurve<a class="anchor" aria-label="anchor" href="#step-1-fit-a-single-ordering-mpcurve"></a>
 </h2>
-<p>First, we will try to fit a MPCurve using <code>MPCurver</code>
-package, the goal is to learn the latent position of all the mutants
-such that their fitness scores are functions that vary smoothly along
-the latent positions.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit_unidir</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mpcurve.html">fit_mpcurve</a></span><span class="op">(</span></span>
-<span>    <span class="va">X</span>,</span>
-<span>    method <span class="op">=</span> <span class="st">"isomap"</span>,</span>
-<span>    K <span class="op">=</span> <span class="fl">50</span>,</span>
-<span>    rw_q <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>    verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>Take a look at the convergence:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir</span>, plot_type <span class="op">=</span> <span class="st">"elbo"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/convergence-1.png" class="r-plt" width="100%"></p>
-<p>Look at some fitted trajectories (first 4 environments):</p>
+<p>We start with the simplest question: can one latent ordering explain
+the main structure in the dataset?</p>
+<p>The call below uses the main user-facing API:</p>
+<ul>
+<li>
+<code>method = "isomap"</code> supplies the initialization;</li>
+<li>
+<code>K = 50</code> uses a 50-bin latent grid;</li>
+<li>
+<code>rw_q = 2</code> uses a second-order random-walk prior for
+smooth trajectories.</li>
+</ul>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_unidir</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mpcurve.html">fit_mpcurve</a></span><span class="op">(</span></span>
+<span>  <span class="va">X</span>,</span>
+<span>  method <span class="op">=</span> <span class="st">"isomap"</span>,</span>
+<span>  K <span class="op">=</span> <span class="fl">50</span>,</span>
+<span>  rw_q <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<div class="section level3">
+<h3 id="check-convergence">Check convergence<a class="anchor" aria-label="anchor" href="#check-convergence"></a>
+</h3>
+<p>For the default <code>cavi</code> backend, the main quantity to
+inspect is the ELBO trace.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir</span>, plot_type <span class="op">=</span> <span class="st">"elbo"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="fitness_files/figure-html/uni-convergence-1.png" class="r-plt" width="100%"></p>
+</div>
+<div class="section level3">
+<h3 id="inspect-a-few-fitted-trajectories">Inspect a few fitted trajectories<a class="anchor" aria-label="anchor" href="#inspect-a-few-fitted-trajectories"></a>
+</h3>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir</span>, dims <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir</span>, dims <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir</span>, dims <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/uni-trajectory-1.png" class="r-plt" width="100%"></p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>These four environments (EC Batch 19, EC Batch 3, EC Batch 6, EC
-Batch 13) show very similar trajectories along the latent position, both
-appearing to increase with latent positions. However, the fitted curves
-appear to be quite wiggly. To make the curves smoother, we can apply a
-prior on
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>λ</mi><annotation encoding="application/x-tex">\lambda</annotation></semantics></math>,
-which controls the roughness of the trajectories. The prior is an
-exponential prior assigned to
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mi>/</mi><mi>s</mi><mi>q</mi><mi>r</mi><mi>t</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>λ</mi><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">1/sqrt(\lambda)</annotation></semantics></math>.
-By increasing the rate parameter of the exponential prior, we can make
-the fitted trajectories smoother.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit_unidir_smooth</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mpcurve.html">fit_mpcurve</a></span><span class="op">(</span></span>
-<span>    <span class="va">X</span>,</span>
-<span>    method <span class="op">=</span> <span class="st">"isomap"</span>,</span>
-<span>    K <span class="op">=</span> <span class="fl">50</span>,</span>
-<span>    iter <span class="op">=</span> <span class="fl">500</span>,</span>
-<span>    rw_q <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>    lambda_sd_prior_rate <span class="op">=</span> <span class="fl">1e4</span>,</span>
-<span>    verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>Again, check if the model has converged:</p>
+<p><img src="fitness_files/figure-html/uni-trajectories-1.png" class="r-plt" width="100%"></p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>The first fit already recovers coherent structure, but the
+trajectories are still rougher than we would like for interpretation.
+This is a common pattern on real data: the latent ordering may be
+sensible even when the fitted curves need stronger regularization.</p>
+</div>
+</div>
+<div class="section level2">
+<h2 id="step-2-encourage-smoother-trajectories">Step 2: Encourage smoother trajectories<a class="anchor" aria-label="anchor" href="#step-2-encourage-smoother-trajectories"></a>
+</h2>
+<p>We now refit the same single-ordering model, but add a stronger prior
+on <code>lambda_j</code> through <code>lambda_sd_prior_rate</code>.
+Larger values encourage smoother trajectories.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_unidir_smooth</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mpcurve.html">fit_mpcurve</a></span><span class="op">(</span></span>
+<span>  <span class="va">X</span>,</span>
+<span>  method <span class="op">=</span> <span class="st">"isomap"</span>,</span>
+<span>  K <span class="op">=</span> <span class="fl">50</span>,</span>
+<span>  iter <span class="op">=</span> <span class="fl">500</span>,</span>
+<span>  rw_q <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  lambda_sd_prior_rate <span class="op">=</span> <span class="fl">1e4</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, plot_type <span class="op">=</span> <span class="st">"elbo"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="fitness_files/figure-html/uni-convergence-smooth-1.png" class="r-plt" width="100%"></p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## MPCurve Model Summary</span></span>
-<span><span class="co">## Algorithm : cavi  |  Model : homoskedastic  |  n=421  d=45  K=50</span></span>
-<span><span class="co">## Underlying fit summary</span></span>
-<span><span class="co">## &lt;summary.cavi&gt;</span></span>
-<span><span class="co">##   n = 421, d = 45, K = 50</span></span>
-<span><span class="co">##   model = homoskedastic, RW(q) = 2</span></span>
-<span><span class="co">##   init = isomap, discretization = quantile, adaptive = variational</span></span>
-<span><span class="co">##   iter = 349, converged = yes</span></span>
-<span><span class="co">##   last ELBO = 11842.508 (delta last = 0.01137)</span></span>
-<span><span class="co">##   last logLik = 14069.441 (delta last = 0.01416)</span></span>
-<span><span class="co">##   pi range = [2.22e-16, 0.369]</span></span>
-<span><span class="co">##   sigma2 range = [0.001992, 0.3605]</span></span>
-<span><span class="co">##   lambda range = [22147, 4771014]</span></span>
-<span><span class="co">##   relative change (last step):</span></span>
-<span><span class="co">##     ELBO: 9.6e-07</span></span>
-<span><span class="co">##     logLik: 1.01e-06</span></span>
-<span><span class="co">##     lambda_vec (L2 rel): 0.00428</span></span></code></pre>
-<p>Take a look at the fitted trajectories:</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_unidir_smooth</span></span>
+<span><span class="co">#&gt; MPCurve model fit</span></span>
+<span><span class="co">#&gt;   Algorithm : cavi</span></span>
+<span><span class="co">#&gt;   Model     : homoskedastic</span></span>
+<span><span class="co">#&gt;   n / d / K : 421 / 45 / 50</span></span>
+<span><span class="co">#&gt;   Iterations: 349</span></span>
+<span><span class="co">#&gt;   ELBO (last)  : 11842.508096</span></span>
+<span><span class="co">#&gt;   logLik (last): 14069.441003</span></span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, dims <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, dims <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, dims <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/uni-trajectory-smooth-1.png" class="r-plt" width="100%"></p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>This looks much more reaonsable to me. We can compare the mean latent
-positions learned by the two models:</p>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, dims <span class="op">=</span> <span class="fl">7</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, dims <span class="op">=</span> <span class="fl">9</span><span class="op">)</span></span></code></pre></div>
+<p><img src="fitness_files/figure-html/uni-trajectories-smooth-1.png" class="r-plt" width="100%"></p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span>, <span class="va">fit_unidir</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## [1] 0.952165</span></span></code></pre>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span>, <span class="va">fit_unidir</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span>,</span>
-<span>    xlab <span class="op">=</span> <span class="st">"Latent position (smooth)"</span>, ylab <span class="op">=</span> <span class="st">"Latent position (rough)"</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>These curves are easier to read: the global ordering remains, but the
+fitted environment trajectories are less wiggly.</p>
+<p>A useful sanity check is whether smoothing changes the inferred
+mutant ordering itself, or mainly changes the trajectory estimates.</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span></span>
+<span>  <span class="va">fit_unidir_smooth</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span>,</span>
+<span>  <span class="va">fit_unidir</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0.952165</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span></span>
+<span>  <span class="va">fit_unidir_smooth</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span>,</span>
+<span>  <span class="va">fit_unidir</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span>,</span>
+<span>  xlab <span class="op">=</span> <span class="st">"Latent position (smoother fit)"</span>,</span>
+<span>  ylab <span class="op">=</span> <span class="st">"Latent position (less regularized fit)"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, lty <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/compare-latent-positions-1.png" class="r-plt" width="100%"></p>
-<p>The latent positions do not change much, but the trajectories are
-much smoother.</p>
+<p><img src="fitness_files/figure-html/compare-single-orderings-1.png" class="r-plt" width="100%"></p>
+<p>In this dataset the two fits stay close, which is reassuring:
+stronger regularization mostly improves interpretability rather than
+changing the basic ordering story.</p>
+</div>
+<div class="section level2">
+<h2 id="step-3-ask-whether-one-ordering-is-enough">Step 3: Ask whether one ordering is enough<a class="anchor" aria-label="anchor" href="#step-3-ask-whether-one-ordering-is-enough"></a>
+</h2>
+<p>The single-ordering fit assumes that every environment varies
+smoothly along the same latent mutant axis. That may be too restrictive.
+Some environments may reflect a different adaptation program and
+therefore prefer a different latent ordering.</p>
+<p>To test that idea, we let <code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</a></code> search over up
+to four latent ordering systems using greedy backward selection. The
+model starts with four orderings and prunes back to the optimal number
+based on the ELBO.</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_partition</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mpcurve.html">fit_mpcurve</a></span><span class="op">(</span></span>
+<span>  <span class="va">X</span>,</span>
+<span>  method <span class="op">=</span> <span class="st">"isomap"</span>,</span>
+<span>  intrinsic_dim <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  greedy <span class="op">=</span> <span class="st">"backward"</span>,</span>
+<span>  ridge <span class="op">=</span> <span class="fl">1e-6</span>,</span>
+<span>  K <span class="op">=</span> <span class="fl">50</span>,</span>
+<span>  iter <span class="op">=</span> <span class="fl">500</span>,</span>
+<span>  rw_q <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  lambda_sd_prior_rate <span class="op">=</span> <span class="fl">1e4</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_partition</span></span>
+<span><span class="co">#&gt; MPCurve model fit (2-ordering partition)</span></span>
+<span><span class="co">#&gt;   Algorithm      : cavi</span></span>
+<span><span class="co">#&gt;   Greedy search  : backward (upper bound 4 -&gt; selected 2)</span></span>
+<span><span class="co">#&gt;   Intrinsic dim  : 2</span></span>
+<span><span class="co">#&gt;   n / d / K      : 421 / 45 / 50</span></span>
+<span><span class="co">#&gt;   Partition      : A=35, B=10</span></span>
+<span><span class="co">#&gt;   Active         : A, B</span></span>
+<span><span class="co">#&gt;   Objective (last): 12507.438956</span></span>
+<span><span class="co">#&gt;   Objective type : fixed-requested-M comparison</span></span>
+<span><span class="co">#&gt;   Converged      : TRUE</span></span>
+<span><span class="co">#&gt;   Phase-2 rel_delta   : 3.869e-06</span></span>
+<span><span class="co">#&gt;   Small-step streak: 3</span></span>
+<span><span class="co">#&gt;   Reason         : Phase-2 rel_delta stayed below 1.0e-05 for 3 consecutive nonnegative steps.</span></span></code></pre></div>
+<div class="section level3">
+<h3 id="look-at-some-fitted-orderings">Look at some fitted orderings<a class="anchor" aria-label="anchor" href="#look-at-some-fitted-orderings"></a>
+</h3>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">1</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
+<p><img src="fitness_files/figure-html/partition-plot-1.png" class="r-plt" width="100%"></p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition</span>, dims <span class="op">=</span> <span class="fl">27</span><span class="op">)</span></span></code></pre></div>
+<p><img src="fitness_files/figure-html/partition-plot-2.png" class="r-plt" width="100%"></p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="which-environments-were-assigned-to-which-ordering">Which environments were assigned to which ordering?<a class="anchor" aria-label="anchor" href="#which-environments-were-assigned-to-which-ordering"></a>
+</h3>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">assignment_tbl</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  environment <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span>,</span>
+<span>  category <span class="op">=</span> <span class="va">env_category</span>,</span>
+<span>  ordering <span class="op">=</span> <span class="va">fit_partition</span><span class="op">$</span><span class="va">partition</span><span class="op">$</span><span class="va">assign</span>,</span>
+<span>  stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">assignment_tbl</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/order.html" class="external-link">order</a></span><span class="op">(</span><span class="va">assignment_tbl</span><span class="op">$</span><span class="va">ordering</span>, <span class="va">assignment_tbl</span><span class="op">$</span><span class="va">category</span>, <span class="va">assignment_tbl</span><span class="op">$</span><span class="va">environment</span><span class="op">)</span>, <span class="op">]</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span>row.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<thead><tr class="header">
+<th align="left">environment</th>
+<th align="left">category</th>
+<th align="left">ordering</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left">0.5% Raf</td>
+<td align="left">carbon source</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">1.5% Suc, 1% Raf</td>
+<td align="left">carbon source</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">1% Gly</td>
+<td align="left">carbon source</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">1% Raf</td>
+<td align="left">carbon source</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">0.5% DMSO</td>
+<td align="left">drug / chemical</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">17 μM GdA</td>
+<td align="left">drug / chemical</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">2 μg/ml Flu</td>
+<td align="left">drug / chemical</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">8.5 μM GdA (B1)</td>
+<td align="left">drug / chemical</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">8.5 μM GdA (B9)</td>
+<td align="left">drug / chemical</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">1.4% Gluc</td>
+<td align="left">glucose / batch</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">1.8% Gluc</td>
+<td align="left">glucose / batch</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">Baffle (B8)</td>
+<td align="left">glucose / batch</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">Baffle (B9)</td>
+<td align="left">glucose / batch</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">Baffle, 1.4% Gluc</td>
+<td align="left">glucose / batch</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">Baffle, 1.6% Gluc</td>
+<td align="left">glucose / batch</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">Baffle, 1.7% Gluc</td>
+<td align="left">glucose / batch</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">Baffle, 1.8% Gluc</td>
+<td align="left">glucose / batch</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">Baffle, 2.5% Gluc</td>
+<td align="left">glucose / batch</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">EC 1BigBatch</td>
+<td align="left">other</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">EC Batch 13</td>
+<td align="left">other</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">EC Batch 18</td>
+<td align="left">other</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">EC Batch 19</td>
+<td align="left">other</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">EC Batch 20</td>
+<td align="left">other</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">EC Batch 21</td>
+<td align="left">other</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">EC Batch 23</td>
+<td align="left">other</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">EC Batch 3</td>
+<td align="left">other</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">EC Batch 6</td>
+<td align="left">other</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">12 hr Ferm</td>
+<td align="left">time course</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">18 hr Ferm</td>
+<td align="left">time course</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">22 hr Ferm</td>
+<td align="left">time course</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">3 Day</td>
+<td align="left">time course</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">4 Day</td>
+<td align="left">time course</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">5 Day</td>
+<td align="left">time course</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">6 Day</td>
+<td align="left">time course</td>
+<td align="left">A</td>
+</tr>
+<tr class="odd">
+<td align="left">8 hr Ferm</td>
+<td align="left">time course</td>
+<td align="left">A</td>
+</tr>
+<tr class="even">
+<td align="left">1% EtOH</td>
+<td align="left">carbon source</td>
+<td align="left">B</td>
+</tr>
+<tr class="odd">
+<td align="left">0.5 μg/ml Flu</td>
+<td align="left">drug / chemical</td>
+<td align="left">B</td>
+</tr>
+<tr class="even">
+<td align="left">Baffle, 0.4 μg/ml Ben</td>
+<td align="left">drug / chemical</td>
+<td align="left">B</td>
+</tr>
+<tr class="odd">
+<td align="left">Baffle, 2 μg/ml Ben</td>
+<td align="left">drug / chemical</td>
+<td align="left">B</td>
+</tr>
+<tr class="even">
+<td align="left">0.2 M KCl</td>
+<td align="left">salt stress</td>
+<td align="left">B</td>
+</tr>
+<tr class="odd">
+<td align="left">0.2 M NaCl</td>
+<td align="left">salt stress</td>
+<td align="left">B</td>
+</tr>
+<tr class="even">
+<td align="left">0.5 M KCl</td>
+<td align="left">salt stress</td>
+<td align="left">B</td>
+</tr>
+<tr class="odd">
+<td align="left">0.5 M NaCl</td>
+<td align="left">salt stress</td>
+<td align="left">B</td>
+</tr>
+<tr class="even">
+<td align="left">1 Day</td>
+<td align="left">time course</td>
+<td align="left">B</td>
+</tr>
+<tr class="odd">
+<td align="left">7 Day</td>
+<td align="left">time course</td>
+<td align="left">B</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section level3">
+<h3 id="how-similar-are-the-inferred-orderings">How similar are the inferred orderings?<a class="anchor" aria-label="anchor" href="#how-similar-are-the-inferred-orderings"></a>
+</h3>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ordering_names</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">fit_partition</span><span class="op">$</span><span class="va">locations</span><span class="op">)</span></span>
+<span><span class="va">ordering_names</span> <span class="op">&lt;-</span> <span class="va">ordering_names</span><span class="op">[</span><span class="va">ordering_names</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">fit_partition</span><span class="op">$</span><span class="va">partition</span><span class="op">$</span><span class="va">assign</span><span class="op">)</span><span class="op">]</span></span>
+<span></span>
+<span><span class="va">t_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/setNames.html" class="external-link">setNames</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">ordering_names</span>, <span class="kw">function</span><span class="op">(</span><span class="va">nm</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">fit_partition</span><span class="op">$</span><span class="va">locations</span><span class="op">[[</span><span class="va">nm</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span></span>
+<span>  <span class="op">}</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="va">ordering_names</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="va">t_df</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span>digits <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<thead><tr class="header">
+<th align="left"></th>
+<th align="right">A</th>
+<th align="right">B</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left">A</td>
+<td align="right">1.000</td>
+<td align="right">0.206</td>
+</tr>
+<tr class="even">
+<td align="left">B</td>
+<td align="right">0.206</td>
+<td align="right">1.000</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section level2">
+<h2 id="step-4-refit-with-known-measurement-error">Step 4: Refit with known measurement error<a class="anchor" aria-label="anchor" href="#step-4-refit-with-known-measurement-error"></a>
+</h2>
+<p>The raw file includes paired <code>*_error</code> columns, and
+<code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</a></code> can use them directly through the
+<code>S</code> argument. In the public API, <code>S</code> is
+interpreted as a matrix of known measurement standard deviations.</p>
+<p>This matters here because ignoring heterogeneous measurement error
+can make the model over-explain noisy columns by introducing extra
+orderings.</p>
+<div class="section level3">
+<h3 id="single-ordering-fit-with-known-measurement-sd">Single-ordering fit with known measurement SD<a class="anchor" aria-label="anchor" href="#single-ordering-fit-with-known-measurement-sd"></a>
+</h3>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_unidir_known_sd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mpcurve.html">fit_mpcurve</a></span><span class="op">(</span></span>
+<span>  <span class="va">X</span>,</span>
+<span>  S <span class="op">=</span> <span class="va">S</span>,</span>
+<span>  method <span class="op">=</span> <span class="st">"isomap"</span>,</span>
+<span>  K <span class="op">=</span> <span class="fl">50</span>,</span>
+<span>  iter <span class="op">=</span> <span class="fl">500</span>,</span>
+<span>  rw_q <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  lambda_sd_prior_rate <span class="op">=</span> <span class="fl">1e4</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_known_sd</span>, plot_type <span class="op">=</span> <span class="st">"elbo"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="fitness_files/figure-html/uni-known-sd-convergence-1.png" class="r-plt" width="100%"></p>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_known_sd</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_known_sd</span>, dims <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_known_sd</span>, dims <span class="op">=</span> <span class="fl">31</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_known_sd</span>, dims <span class="op">=</span> <span class="fl">45</span><span class="op">)</span></span></code></pre></div>
+<p><img src="fitness_files/figure-html/uni-known-sd-trajectories-1.png" class="r-plt" width="100%"></p>
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="greedy-search-with-known-measurement-sd">Greedy search with known measurement SD<a class="anchor" aria-label="anchor" href="#greedy-search-with-known-measurement-sd"></a>
+</h3>
+<p>We first try forward selection to see whether the data support
+multiple orderings once we account for measurement error. This approach
+starts with a single ordering and adds orderings until the ELBO stops
+improving.</p>
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_partition_known_sd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mpcurve.html">fit_mpcurve</a></span><span class="op">(</span></span>
+<span>  <span class="va">X</span>,</span>
+<span>  S <span class="op">=</span> <span class="va">S</span>,</span>
+<span>  method <span class="op">=</span> <span class="st">"isomap"</span>,</span>
+<span>  intrinsic_dim <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  greedy <span class="op">=</span> <span class="st">"forward"</span>,</span>
+<span>  ridge <span class="op">=</span> <span class="fl">1e-6</span>,</span>
+<span>  K <span class="op">=</span> <span class="fl">50</span>,</span>
+<span>  iter <span class="op">=</span> <span class="fl">500</span>,</span>
+<span>  rw_q <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  lambda_sd_prior_rate <span class="op">=</span> <span class="fl">1e4</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">fit_partition_known_sd</span></span>
+<span><span class="co">#&gt; MPCurve model fit</span></span>
+<span><span class="co">#&gt;   Algorithm : cavi</span></span>
+<span><span class="co">#&gt;   Greedy    : forward (upper bound 4 -&gt; selected 1)</span></span>
+<span><span class="co">#&gt;   Model     : homoskedastic</span></span>
+<span><span class="co">#&gt;   n / d / K : 421 / 45 / 50</span></span>
+<span><span class="co">#&gt;   Iterations: 235</span></span>
+<span><span class="co">#&gt;   ELBO (last)  : 13531.873663</span></span>
+<span><span class="co">#&gt;   logLik (last): 16205.048990</span></span></code></pre></div>
+<p>It is also useful to check the same question from the other direction
+by starting from the upper bound and pruning redundant orderings.</p>
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_partition_known_sd_backward</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mpcurve.html">fit_mpcurve</a></span><span class="op">(</span></span>
+<span>  <span class="va">X</span>,</span>
+<span>  S <span class="op">=</span> <span class="va">S</span>,</span>
+<span>  method <span class="op">=</span> <span class="st">"isomap"</span>,</span>
+<span>  intrinsic_dim <span class="op">=</span> <span class="fl">4</span>,</span>
+<span>  greedy <span class="op">=</span> <span class="st">"backward"</span>,</span>
+<span>  ridge <span class="op">=</span> <span class="fl">1e-6</span>,</span>
+<span>  K <span class="op">=</span> <span class="fl">50</span>,</span>
+<span>  iter <span class="op">=</span> <span class="fl">500</span>,</span>
+<span>  rw_q <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  lambda_sd_prior_rate <span class="op">=</span> <span class="fl">1e4</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">fit_partition_known_sd_backward</span></span>
+<span><span class="co">#&gt; MPCurve model fit</span></span>
+<span><span class="co">#&gt;   Algorithm : cavi</span></span>
+<span><span class="co">#&gt;   Greedy    : backward (upper bound 4 -&gt; selected 1)</span></span>
+<span><span class="co">#&gt;   Model     : homoskedastic</span></span>
+<span><span class="co">#&gt;   n / d / K : 421 / 45 / 50</span></span>
+<span><span class="co">#&gt;   Iterations: 197</span></span>
+<span><span class="co">#&gt;   ELBO (last)  : 13591.042390</span></span>
+<span><span class="co">#&gt;   logLik (last): 16229.890897</span></span></code></pre></div>
+<p>When both forward and backward selection collapse back to a single
+ordering, that is strong evidence that the earlier higher-dimensional
+fit was mainly absorbing noise heterogeneity rather than revealing
+genuinely distinct latent systems.</p>
+</div>
+<div class="section level3">
+<h3 id="compare-the-forward-and-backward-single-ordering-solutions">Compare the forward and backward single-ordering solutions<a class="anchor" aria-label="anchor" href="#compare-the-forward-and-backward-single-ordering-solutions"></a>
+</h3>
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span></span>
+<span>  <span class="va">fit_partition_known_sd</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span>,</span>
+<span>  <span class="va">fit_partition_known_sd_backward</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0.999151</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span></span>
+<span>  <span class="va">fit_partition_known_sd</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span>,</span>
+<span>  <span class="va">fit_partition_known_sd_backward</span><span class="op">$</span><span class="va">locations</span><span class="op">$</span><span class="va">mean</span><span class="op">$</span><span class="va">pseudotime</span>,</span>
+<span>  xlab <span class="op">=</span> <span class="st">"Latent position (forward search)"</span>,</span>
+<span>  ylab <span class="op">=</span> <span class="st">"Latent position (backward search)"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, lty <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
+<p><img src="fitness_files/figure-html/compare-known-sd-orderings-1.png" class="r-plt" width="100%"></p>
+<p>Though both methods find a single ordering.</p>
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition_known_sd</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition_known_sd</span>, dims <span class="op">=</span> <span class="fl">30</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition_known_sd_backward</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition_known_sd_backward</span>, dims <span class="op">=</span> <span class="fl">30</span><span class="op">)</span></span></code></pre></div>
+<p><img src="fitness_files/figure-html/compare-known-sd-trajectories-1.png" class="r-plt" width="100%"></p>
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="takeaways">Takeaways<a class="anchor" aria-label="anchor" href="#takeaways"></a>
+</h2>
+<p>This dataset gives a useful template for real-world
+<code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</a></code> analyses.</p>
+<ol style="list-style-type: decimal">
+<li>Start with a single-ordering fit to establish the basic latent
+ordering.</li>
+<li>Use <code>lambda_sd_prior_rate</code> when the ordering looks
+sensible but the fitted trajectories are too rough to interpret
+comfortably.</li>
+<li>Use <code>intrinsic_dim</code> together with greedy search to test
+whether the data support multiple ordering systems.</li>
+<li>If measurement error is available, pass it through <code>S</code>;
+otherwise the model may over-split noisy environments into extra
+orderings.</li>
+</ol>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

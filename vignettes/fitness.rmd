@@ -308,9 +308,8 @@ par(mfrow = c(1, 1))
 ```
 
 The first fit already recovers coherent structure, but the trajectories are
-still rougher than we would like for interpretation. This is a common pattern
-on real data: the latent ordering may be sensible even when the fitted curves
-need stronger regularization.
+still rougher than we would like for interpretation. 
+This is a common pattern on real data: the latent ordering may be sensible even when the fitted curves need stronger regularization.
 
 ## Step 2: Encourage smoother trajectories
 
@@ -376,17 +375,16 @@ the same latent mutant axis. That may be too restrictive. Some environments may
 reflect a different adaptation program and therefore prefer a different latent
 ordering.
 
-To test that idea, we let `fit_mpcurve()` search over up to five latent
-ordering systems using greedy forward selection. Conceptually, this asks
-whether adding another ordering improves the objective enough to justify the
-extra complexity.
+To test that idea, we let `fit_mpcurve()` search over up to four latent
+ordering systems using greedy backward selection. 
+The model starts with four orderings and prunes back to the optimal number based on the ELBO.
 
 ```{r partition-fit}
 fit_partition <- fit_mpcurve(
   X,
   method = "isomap",
   intrinsic_dim = 4,
-  greedy = "forward",
+  greedy = "backward",
   ridge = 1e-6,
   K = 50,
   iter = 500,
@@ -400,10 +398,13 @@ fit_partition <- fit_mpcurve(
 fit_partition
 ```
 
-### Look at one fitted ordering
+### Look at some fitted orderings
 
 ```{r partition-plot, out.width = "100%"}
+par(mfrow = c(2, 1), mar = c(4, 4, 3, 1))
 plot(fit_partition, dims = 1)
+plot(fit_partition, dims = 27)
+par(mfrow = c(1, 1))
 ```
 
 ### Which environments were assigned to which ordering?
@@ -437,11 +438,7 @@ cor(t_df) |>
   knitr::kable(digits = 3)
 ```
 
-If several inferred orderings are highly correlated, that usually means the
-model is using multiple nearby versions of the same latent axis rather than
-discovering truly distinct structures. In practice, that is often a sign to
-inspect the noise model before concluding that the data really need many
-orderings.
+
 
 ## Step 4: Refit with known measurement error
 
@@ -462,7 +459,7 @@ fit_unidir_known_sd <- fit_mpcurve(
   K = 50,
   iter = 500,
   rw_q = 2,
-  lambda_sd_prior_rate = 5e4,
+  lambda_sd_prior_rate = 1e4,
   verbose = FALSE
 )
 ```
@@ -475,12 +472,15 @@ plot(fit_unidir_known_sd, plot_type = "elbo")
 par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
 plot(fit_unidir_known_sd, dims = 1)
 plot(fit_unidir_known_sd, dims = 2)
-plot(fit_unidir_known_sd, dims = 35)
+plot(fit_unidir_known_sd, dims = 31)
 plot(fit_unidir_known_sd, dims = 45)
 par(mfrow = c(1, 1))
 ```
 
 ### Greedy search with known measurement SD
+
+We first try forward selection to see whether the data support multiple orderings once we account for measurement error.
+This approach starts with a single ordering and adds orderings until the ELBO stops improving.
 
 ```{r partition-fit-known-sd}
 fit_partition_known_sd <- fit_mpcurve(
@@ -493,7 +493,7 @@ fit_partition_known_sd <- fit_mpcurve(
   K = 50,
   iter = 500,
   rw_q = 2,
-  lambda_sd_prior_rate = 5e4,
+  lambda_sd_prior_rate = 1e4,
   verbose = FALSE
 )
 
@@ -510,11 +510,11 @@ fit_partition_known_sd_backward <- fit_mpcurve(
   method = "isomap",
   intrinsic_dim = 4,
   greedy = "backward",
-  ridge = 1e-8,
+  ridge = 1e-6,
   K = 50,
   iter = 500,
-  rw_q = 3,
-  lambda_sd_prior_rate = 1e5,
+  rw_q = 2,
+  lambda_sd_prior_rate = 1e4,
   verbose = FALSE
 )
 
@@ -543,6 +543,8 @@ plot(
 abline(0, 1, lty = 2)
 ```
 
+Though both methods find a single ordering.
+
 ```{r compare-known-sd-trajectories, fig.height = 8, out.width = "100%"}
 par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
 plot(fit_partition_known_sd, dims = 1)
@@ -552,10 +554,7 @@ plot(fit_partition_known_sd_backward, dims = 30)
 par(mfrow = c(1, 1))
 ```
 
-The agreement between these two fits is the main practical conclusion of the
-vignette: once we account for known measurement error, the data are consistent
-with one dominant latent ordering rather than several distinct adaptation
-systems.
+
 
 ## Takeaways
 
@@ -569,6 +568,3 @@ This dataset gives a useful template for real-world `fit_mpcurve()` analyses.
 4. If measurement error is available, pass it through `S`; otherwise the model
    may over-split noisy environments into extra orderings.
 
-In this eLife example, the main biological story is a single robust latent
-ordering, while the most important modeling lesson is that known measurement
-error changes the intrinsic-dimension conclusion.
