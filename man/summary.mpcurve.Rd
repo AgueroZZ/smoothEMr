@@ -2,9 +2,12 @@
 % Please edit documentation in R/07_mpcurve.R
 \name{summary.mpcurve}
 \alias{summary.mpcurve}
+\alias{print.summary.mpcurve}
 \title{Summarise an \code{mpcurve} model fit}
 \usage{
 \method{summary}{mpcurve}(object, ...)
+
+\method{print}{summary.mpcurve}(x, ...)
 }
 \arguments{
 \item{object}{An \code{mpcurve} object.}

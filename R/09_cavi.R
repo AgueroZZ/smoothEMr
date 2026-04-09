@@ -448,7 +448,7 @@ simulate_cavi_toy <- function(n = 150,
 #'   \item \code{$elbo_trace}: the monotone variational objective used for diagnostics
 #'   \item \code{$loglik_trace}: a plug-in observed log-likelihood diagnostic
 #' }
-#' @export
+#' @noRd
 cavi <- function(X,
                  K = NULL,
                  method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
@@ -1095,7 +1095,7 @@ cavi <- function(X,
 #' @return An updated \code{cavi} object with extended traces. The returned
 #'   object keeps the full accumulated \code{$elbo_trace}, \code{$loglik_trace},
 #'   \code{$lambda_trace}, \code{$sigma2_trace}, and \code{$pi_trace}.
-#' @export
+#' @noRd
 do_cavi <- function(object,
                     iter = 1L,
                     tol = NULL,
@@ -1222,7 +1222,7 @@ do_cavi <- function(object,
 }
 
 
-#' @export
+#' @noRd
 print.cavi <- function(x, ...) {
   last_elbo <- if (length(x$elbo_trace)) tail(x$elbo_trace, 1L) else NA_real_
   last_ll <- if (length(x$loglik_trace)) tail(x$loglik_trace, 1L) else NA_real_
@@ -1252,7 +1252,7 @@ print.cavi <- function(x, ...) {
 #' @param ... Unused.
 #'
 #' @return An object of class \code{"summary.cavi"}.
-#' @export
+#' @noRd
 summary.cavi <- function(object, ...) {
   if (!inherits(object, "cavi")) stop("object must inherit from class 'cavi'.")
 
@@ -1335,7 +1335,7 @@ summary.cavi <- function(object, ...) {
 }
 
 
-#' @export
+#' @noRd
 print.summary.cavi <- function(x, ...) {
   cat("<summary.cavi>\n")
   cat(sprintf("  n = %s, d = %s, K = %s\n",
@@ -1400,7 +1400,7 @@ print.summary.cavi <- function(x, ...) {
 #' @param ... Passed through to low-level plotting functions.
 #'
 #' @return Invisibly returns \code{x}.
-#' @export
+#' @noRd
 plot.cavi <- function(
     x,
     plot_type = c("scatterplot", "elbo", "mu"),

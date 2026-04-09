@@ -7,7 +7,16 @@
 \title{MPCurver package}
 \description{
 CAVI-first trajectory and pseudotime inference with legacy smoothEM
-backends retained for backward compatibility.
+backends retained for internal benchmarking and compatibility checks.
+}
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://aguerozz.github.io/MPCurver/}
+  \item \url{https://github.com/AgueroZZ/MPCurver}
+  \item Report bugs at \url{https://github.com/AgueroZZ/MPCurver/issues}
+}
+
 }
 \author{
 \strong{Maintainer}: Ziang Zhang \email{aguero.zhang@gmail.com}

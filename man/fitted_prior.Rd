@@ -7,7 +7,7 @@
 fitted_prior(x, type = c("position", "partition"), ordering = NULL, ...)
 }
 \arguments{
-\item{x}{A fitted MPCurver object.}
+\item{x}{A fitted \code{mpcurve} object.}
 
 \item{type}{One of \code{"position"} or \code{"partition"}.}
 
@@ -19,11 +19,10 @@ fitted_prior(x, type = c("position", "partition"), ordering = NULL, ...)
 The fitted/effective prior corresponding to \code{type}.
 }
 \description{
-Returns the current fitted/effective prior from a \code{cavi},
-\code{soft_partition_cavi}, or \code{mpcurve} object. For position priors,
-single-ordering fits return a numeric length-\code{K} vector while partition
-fits return a named list of vectors unless a specific ordering is requested.
-For partition priors, \code{ordering = NULL} returns the full prior record
-and a specific \code{ordering} returns the corresponding effective
-\eqn{\omega_m} mass.
+Returns the current fitted/effective prior from an \code{mpcurve} object.
+For position priors, single-ordering fits return a numeric length-\code{K}
+vector while partition fits return a named list of vectors unless a specific
+ordering is requested. For partition priors, \code{ordering = NULL} returns
+the full prior record and a specific \code{ordering} returns the
+corresponding effective \eqn{\omega_m} mass.
 }

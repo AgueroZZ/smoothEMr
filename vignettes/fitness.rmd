@@ -292,13 +292,13 @@ fit_unidir <- fit_mpcurve(
 
 For the default `cavi` backend, the main quantity to inspect is the ELBO trace.
 
-```{r uni-convergence, out.width = "100%"}
+```{r uni-convergence, out.width = "100%", fig.alt = "ELBO trace for the single-ordering CAVI fit, showing convergence over iterations."}
 plot(fit_unidir, plot_type = "elbo")
 ```
 
 ### Inspect a few fitted trajectories
 
-```{r uni-trajectories, fig.height = 8, out.width = "100%"}
+```{r uni-trajectories, fig.height = 8, out.width = "100%", fig.alt = "Four panels showing fitted single-ordering CAVI trajectories for the first four environment dimensions."}
 par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
 plot(fit_unidir, dims = 1)
 plot(fit_unidir, dims = 2)
@@ -329,12 +329,12 @@ fit_unidir_smooth <- fit_mpcurve(
 )
 ```
 
-```{r uni-convergence-smooth, out.width = "100%"}
+```{r uni-convergence-smooth, out.width = "100%", fig.alt = "ELBO trace for the smoothed single-ordering CAVI fit."}
 plot(fit_unidir_smooth, plot_type = "elbo")
 fit_unidir_smooth
 ```
 
-```{r uni-trajectories-smooth, fig.height = 8, out.width = "100%"}
+```{r uni-trajectories-smooth, fig.height = 8, out.width = "100%", fig.alt = "Four panels showing fitted trajectories under the smoothed single-ordering CAVI fit."}
 par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
 plot(fit_unidir_smooth, dims = 1)
 plot(fit_unidir_smooth, dims = 3)
@@ -349,7 +349,7 @@ environment trajectories are less wiggly.
 A useful sanity check is whether smoothing changes the inferred mutant ordering
 itself, or mainly changes the trajectory estimates.
 
-```{r compare-single-orderings, out.width = "100%"}
+```{r compare-single-orderings, out.width = "100%", fig.alt = "Scatter plot comparing inferred mutant pseudotime between the default and smoothed single-ordering fits."}
 cor(
   fit_unidir_smooth$locations$mean$pseudotime,
   fit_unidir$locations$mean$pseudotime
@@ -400,7 +400,7 @@ fit_partition
 
 ### Look at some fitted orderings
 
-```{r partition-plot, out.width = "100%"}
+```{r partition-plot, out.width = "100%", fig.alt = "Two panels showing fitted partition-CAVI trajectories for environment dimensions 1 and 27."}
 par(mfrow = c(2, 1), mar = c(4, 4, 3, 1))
 plot(fit_partition, dims = 1)
 plot(fit_partition, dims = 27)
@@ -464,11 +464,11 @@ fit_unidir_known_sd <- fit_mpcurve(
 )
 ```
 
-```{r uni-known-sd-convergence, out.width = "100%"}
+```{r uni-known-sd-convergence, out.width = "100%", fig.alt = "ELBO trace for the single-ordering CAVI fit with known measurement standard deviations."}
 plot(fit_unidir_known_sd, plot_type = "elbo")
 ```
 
-```{r uni-known-sd-trajectories, fig.height = 8, out.width = "100%"}
+```{r uni-known-sd-trajectories, fig.height = 8, out.width = "100%", fig.alt = "Four panels showing fitted trajectories for the single-ordering CAVI fit with known measurement SDs."}
 par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
 plot(fit_unidir_known_sd, dims = 1)
 plot(fit_unidir_known_sd, dims = 2)
@@ -528,7 +528,7 @@ systems.
 
 ### Compare the forward and backward single-ordering solutions
 
-```{r compare-known-sd-orderings, out.width = "100%"}
+```{r compare-known-sd-orderings, out.width = "100%", fig.alt = "Scatter plot comparing inferred pseudotime between forward and backward greedy search with known measurement SDs."}
 cor(
   fit_partition_known_sd$locations$mean$pseudotime,
   fit_partition_known_sd_backward$locations$mean$pseudotime
@@ -545,7 +545,7 @@ abline(0, 1, lty = 2)
 
 Though both methods find a single ordering.
 
-```{r compare-known-sd-trajectories, fig.height = 8, out.width = "100%"}
+```{r compare-known-sd-trajectories, fig.height = 8, out.width = "100%", fig.alt = "Four panels comparing fitted trajectories from forward and backward greedy search with known measurement SDs."}
 par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
 plot(fit_partition_known_sd, dims = 1)
 plot(fit_partition_known_sd, dims = 30)

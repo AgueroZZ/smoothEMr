@@ -27,8 +27,7 @@ do_mpcurve(
 )
 }
 \arguments{
-\item{object}{An \code{mpcurve} object wrapping a \code{cavi} or
-\code{soft_partition_cavi} fit.}
+\item{object}{An \code{mpcurve} object wrapping a CAVI fit.}
 
 \item{iter}{Integer >= 1. Maximum number of additional CAVI sweeps (single
 ordering) or exact \code{T = 1} partition steps.}
@@ -97,13 +96,12 @@ An updated \code{mpcurve} object.
 }
 \description{
 Public continuation wrapper for MPCurve's recommended CAVI paths. For
-single-ordering fits, this delegates to \code{\link{do_cavi}}. For partition
-fits, it continues the exact \eqn{T = 1} phase of
-\code{\link{soft_partition_cavi}} using the stored frozen-ordering and
-assignment-prior controls.
+single-ordering fits, this continues the underlying CAVI backend. For
+partition fits, it continues the exact \eqn{T = 1} phase of the stored
+partition-CAVI fit using the existing frozen-ordering and assignment-prior
+controls.
 }
 \details{
-Legacy smoothEM/csmoothEM continuation remains available through the lower
-level \code{do_smoothEM()} and \code{do_csmoothEM()} functions, not through
-this high-level wrapper.
+Legacy smoothEM/csmoothEM continuation is not part of this high-level
+interface.
 }

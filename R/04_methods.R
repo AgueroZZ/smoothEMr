@@ -3,7 +3,7 @@
 #' @param x A \code{smooth_em} object.
 #' @param ... Unused.
 #'
-#' @export
+#' @noRd
 print.smooth_em <- function(x, ...) {
   if (!inherits(x, "smooth_em")) stop("print.smooth_em(): x must inherit from class 'smooth_em'.")
 
@@ -59,7 +59,7 @@ print.smooth_em <- function(x, ...) {
 #' @param ... Passed through (unused).
 #'
 #' @return An object of class \code{summary.smooth_em}.
-#' @export
+#' @noRd
 summary.smooth_em <- function(object, ...) {
   if (!inherits(object, "smooth_em")) stop("summary.smooth_em(): object must inherit from class 'smooth_em'.")
 
@@ -130,7 +130,7 @@ summary.smooth_em <- function(object, ...) {
 #' @param x A \code{summary.smooth_em} object.
 #' @param ... Unused.
 #'
-#' @export
+#' @noRd
 print.summary.smooth_em <- function(x, ...) {
   cat("<summary.smooth_em>\n")
   cat(sprintf("  n = %s, d = %s, K = %s\n",
@@ -206,7 +206,7 @@ print.summary.smooth_em <- function(x, ...) {
 #' @param ... Passed to \code{plot()} for the scatter.
 #'
 #' @return Invisibly returns a list with \code{dims}, \code{pos}, \code{mu_mat}.
-#' @export
+#' @noRd
 plot_EM_embedding <- function(
     fit,
     X,
@@ -342,7 +342,7 @@ plot_EM_embedding <- function(
 #' @param ... Passed to the underlying plotting functions.
 #'
 #' @return Invisibly returns \code{x}.
-#' @export
+#' @noRd
 plot.smooth_em <- function(x,
                            data = NULL,
                            plot_type = c("scatterplot", "elbo"),
@@ -471,7 +471,7 @@ plot.smooth_em <- function(x,
 #' plot_EM_embedding2D(mu_list, X2)
 #' plot_EM_embedding2D(mu_list, X2, t_vec = t_vec, legend_title = "Fiedler")
 #'
-#' @export
+#' @noRd
 plot_EM_embedding2D <- function(
     mu_list,
     X2,

@@ -40,11 +40,6 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Case studies</h6></li>
     <li><a class="dropdown-item" href="../articles/fitness.html">Analyzing the eLife Fitness Dataset with MPCurver</a></li>
-    <li><hr class="dropdown-divider"></li>
-    <li><h6 class="dropdown-header" data-toc-skip>Legacy</h6></li>
-    <li><a class="dropdown-item" href="../articles/Intro.html">Introduction to MPCurver</a></li>
-    <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul>
 </li>
       </ul>
@@ -52,6 +47,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/AgueroZZ/MPCurver/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -68,7 +64,7 @@
       <h1>Getting Started with MPCurver CAVI</h1>
             
       
-
+      <small class="dont-index">Source: <a href="https://github.com/AgueroZZ/MPCurver/blob/HEAD/vignettes/mpcurve_intro.Rmd" class="external-link"><code>vignettes/mpcurve_intro.Rmd</code></a></small>
       <div class="d-none name"><code>mpcurve_intro.Rmd</code></div>
     </div>
 
@@ -77,13 +73,10 @@
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">MPCurver</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span></code></pre></div>
-<p><code>MPCurver</code> now uses <code>cavi</code> as the recommended
-default fitting backend. This vignette introduces the statistical model,
-the variational algorithm, and then walks through a larger but still
-easy spiral example.</p>
-<p>The legacy <code>csmooth_em</code> pipeline remains available only
-through lower-level compatibility functions and is no longer part of the
-public wrapper workflow.</p>
+<p><code>MPCurver</code> now uses a CAVI backend through the public
+<code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</a></code> and <code><a href="../reference/do_mpcurve.html">do_mpcurve()</a></code> interface. This
+vignette introduces the statistical model, the variational algorithm,
+and then walks through a larger but still easy spiral example.</p>
 <div class="section level2">
 <h2 id="statistical-model">1 Statistical model<a class="anchor" aria-label="anchor" href="#statistical-model"></a>
 </h2>
@@ -141,8 +134,8 @@ q(C,U) = \prod_{i=1}^n q_i(c_i)\prod_{j=1}^d q_j(u_j).
 <div class="section level2">
 <h2 id="variational-algorithm">2 Variational algorithm<a class="anchor" aria-label="anchor" href="#variational-algorithm"></a>
 </h2>
-<p>The <code><a href="../reference/cavi.html">cavi()</a></code> routine performs coordinate-ascent
-variational inference on an explicit ELBO. Write
+<p>The backend used by <code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</a></code> performs
+coordinate-ascent variational inference on an explicit ELBO. Write
 <math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>r</mi><mrow><mi>i</mi><mi>k</mi></mrow></msub><mo>:=</mo><msub><mi>q</mi><mi>i</mi></msub><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>c</mi><mi>i</mi></msub><mo>=</mo><mi>k</mi><mo stretchy="true" form="postfix">)</mo></mrow><mo>,</mo><mspace width="2.0em"></mspace><msub><mi>N</mi><mi>k</mi></msub><mo>:=</mo><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>r</mi><mrow><mi>i</mi><mi>k</mi></mrow></msub><mo>,</mo></mrow><annotation encoding="application/x-tex">
 r_{ik} := q_i(c_i = k),
 \qquad
@@ -179,7 +172,7 @@ r_{ik}
 \right].
 </annotation></semantics></math></p>
 <p>This is the quantity recorded in <code>elbo_trace</code>. The updates
-used in <code><a href="../reference/cavi.html">cavi()</a></code> are obtained by maximizing this ELBO one
+used by the public backend are obtained by maximizing this ELBO one
 block at a time.</p>
 <div class="section level3">
 <h3 id="update-for-qu_j">2.1 Update for
@@ -214,8 +207,8 @@ S_j = A_j^{-1},
 \qquad
 m_j = S_j b_j.
 </annotation></semantics></math></p>
-<p>This is exactly the linear-algebra step implemented in
-<code><a href="../reference/cavi.html">cavi()</a></code>.</p>
+<p>This is exactly the linear-algebra step implemented by the backend
+behind <code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</a></code>.</p>
 </div>
 <div class="section level3">
 <h3 id="update-for-qc_i">2.2 Update for
@@ -359,7 +352,7 @@ Shorter spiral used in the introductory CAVI example.
 </div>
 </div>
 <div class="section level2">
-<h2 id="fit-the-default-cavi-backend">4 Fit the default <code>cavi</code> backend<a class="anchor" aria-label="anchor" href="#fit-the-default-cavi-backend"></a>
+<h2 id="fit-the-default-public-interface">4 Fit the default public interface<a class="anchor" aria-label="anchor" href="#fit-the-default-public-interface"></a>
 </h2>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mpcurve.html">fit_mpcurve</a></span><span class="op">(</span></span>
@@ -373,23 +366,29 @@ Shorter spiral used in the introductory CAVI example.
 <span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="va">algorithm</span>, <span class="st">"cavi"</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">fit</span></span>
-<span><span class="co">#&gt; MPCurve model fit</span></span>
-<span><span class="co">#&gt;   Algorithm : cavi</span></span>
-<span><span class="co">#&gt;   Model     : homoskedastic</span></span>
+<span><span class="co">#&gt; MPCurve fit</span></span>
+<span><span class="co">#&gt;   Backend        : cavi</span></span>
+<span><span class="co">#&gt;   Model          : homoskedastic</span></span>
 <span><span class="co">#&gt;   n / d / K : 1000 / 2 / 60</span></span>
-<span><span class="co">#&gt;   Iterations: 46</span></span>
-<span><span class="co">#&gt;   ELBO (last)  : -4787.638294</span></span>
+<span><span class="co">#&gt;   Iterations     : 46</span></span>
+<span><span class="co">#&gt;   Position prior : adaptive</span></span>
+<span><span class="co">#&gt;   Converged      : yes</span></span>
+<span><span class="co">#&gt;   ELBO (last)   : -4787.638294</span></span>
 <span><span class="co">#&gt;   logLik (last): -4474.988366</span></span></code></pre></div>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt; MPCurve Model Summary</span></span>
 <span><span class="co">#&gt; Algorithm : cavi  |  Model : homoskedastic  |  n=1000  d=2  K=60</span></span>
+<span><span class="co">#&gt; Position prior : adaptive</span></span>
+<span><span class="co">#&gt; Current pi range : [5.265e-08, 0.02495]</span></span>
+<span><span class="co">#&gt; Converged : yes</span></span>
 <span><span class="co">#&gt; Underlying fit summary</span></span>
 <span><span class="co">#&gt; &lt;summary.cavi&gt;</span></span>
 <span><span class="co">#&gt;   n = 1000, d = 2, K = 60</span></span>
 <span><span class="co">#&gt;   model = homoskedastic, RW(q) = 2</span></span>
 <span><span class="co">#&gt;   noise model = estimated_feature_variance</span></span>
 <span><span class="co">#&gt;   init = fiedler, discretization = quantile, adaptive = variational</span></span>
+<span><span class="co">#&gt;   position prior = adaptive</span></span>
 <span><span class="co">#&gt;   iter = 46, converged = yes</span></span>
 <span><span class="co">#&gt;   last ELBO = -4787.6383 (delta last = 0.004311)</span></span>
 <span><span class="co">#&gt;   last logLik = -4474.9884 (delta last = 0.004553)</span></span>
@@ -442,8 +441,8 @@ True pseudotime (left) and inferred CAVI pseudotime (right).
 </div>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span><span class="va">op</span><span class="op">)</span></span></code></pre></div>
-<p>The built-in <code>mpcurve</code> plotting methods still work on top
-of the default <code>cavi</code> backend.</p>
+<p>The built-in <code>mpcurve</code> plotting methods work directly on
+the fitted object.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, plot_type <span class="op">=</span> <span class="st">"elbo"</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
@@ -462,7 +461,7 @@ Posterior mean trajectories across the K bins.
 <div class="section level2">
 <h2 id="takeaway">7 Takeaway<a class="anchor" aria-label="anchor" href="#takeaway"></a>
 </h2>
-<p>For this easier spiral regime, <code>cavi</code> is:</p>
+<p>For this easier spiral regime, the public CAVI workflow is:</p>
 <ul>
 <li>fast enough to use as the default frontend algorithm,</li>
 <li>explicit about its optimization target through the ELBO,</li>

@@ -123,7 +123,7 @@ ESTEP_csmooth_weighted <- function(X, params, modelName, feature_weights) {
 #' @param record          Logical; record traces.
 #' @param verbose         Logical.
 #' @return Updated csmooth_em object.
-#' @export
+#' @noRd
 do_csmoothEM_weighted <- function(object,
                                   data,
                                   feature_weights,
@@ -712,7 +712,7 @@ do_csmoothEM_ml_collapsed_weighted <- function(object,
 #'
 #' @return List with \code{fit1}, \code{fit2} (both \code{csmooth_em}),
 #'   and \code{seed2} (the column index used to seed fit2, or NA for "random_split").
-#' @export
+#' @noRd
 init_two_trajectories <- function(X,
                                   method          = c("score", "mincor", "random_split"),
                                   method1         = c("PCA", "fiedler", "tSNE", "pcurve", "random"),
@@ -993,7 +993,7 @@ init_two_trajectories <- function(X,
 #'   \item{n_anneal}{Number of Phase 1 iterations.}
 #' }
 #' @seealso \code{\link{soft_two_trajectory_cavi}}
-#' @export
+#' @noRd
 soft_two_trajectory_EM <- function(
     X,
     fit1_init           = NULL,
@@ -1263,7 +1263,7 @@ soft_two_trajectory_EM <- function(
 #' @param result  Output of soft_two_trajectory_EM().
 #' @param feature_names  Optional character vector length d.
 #' @return data.frame with feature, w_A, w_B, assign, entropy.
-#' @export
+#' @noRd
 summarise_soft_partition <- function(result, feature_names = NULL) {
   pw  <- result$pi_weights
   d   <- nrow(pw)
@@ -1280,7 +1280,7 @@ summarise_soft_partition <- function(result, feature_names = NULL) {
 #' @param show_convergence  Show convergence panels 2, 3 & 4.
 #' @param sort_by_weight  Sort features by w_A descending in bar chart.
 #' @param title           Plot title.
-#' @export
+#' @noRd
 plot_soft_weights <- function(result, feature_names = NULL,
                               show_convergence = TRUE,
                               sort_by_weight   = TRUE,
@@ -1670,7 +1670,7 @@ simulate_dual_trajectory <- function(n = 200,
 #' @param result      Output of soft_two_trajectory_EM().
 #' @param true_assign Ground-truth vector ("A","B","noise").
 #' @return List: accuracy, best_alignment, confusion_table.
-#' @export
+#' @noRd
 evaluate_partition <- function(result, true_assign) {
   pred <- result$assign
   true_assign <- as.character(true_assign)

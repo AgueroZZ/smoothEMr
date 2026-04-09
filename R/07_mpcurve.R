@@ -351,30 +351,6 @@
   "ordering_similarity"
 )
 
-.mpcurve_extract_algorithm_arg <- function(dots, caller = "fit_mpcurve()") {
-  if (!("algorithm" %in% names(dots))) {
-    return(list(dots = dots, warned = FALSE))
-  }
-
-  alg <- as.character(dots$algorithm %||% "cavi")[1]
-  dots$algorithm <- NULL
-  if (!identical(alg, "cavi")) {
-    stop(
-      caller,
-      " is now a CAVI-only public wrapper. For legacy fits, call cavi(), ",
-      "do_cavi(), do_csmoothEM(), or do_smoothEM() directly.",
-      call. = FALSE
-    )
-  }
-
-  warning(
-    "`algorithm` is no longer part of the public ", caller,
-    " interface; MPCurver now always uses the CAVI backend here.",
-    call. = FALSE
-  )
-  list(dots = dots, warned = TRUE)
-}
-
 .mpcurve_check_legacy_public_args <- function(dots,
                                               caller = "fit_mpcurve()") {
   legacy_args <- c(
@@ -1204,22 +1180,43 @@
 #'
 #' For partition fits (\code{intrinsic_dim >= 2}), \code{$locations} is a named
 #' list with one such location object per ordering.
-#' @export
-as_mpcurve <- function(x, ...) UseMethod("as_mpcurve")
+#' @noRd
+as_mpcurve <- function(x, ...) {
+  ns <- asNamespace("MPCurver")
+  classes <- class(x)
+
+  for (cls in classes) {
+    method <- get0(
+      paste0("as_mpcurve.", cls),
+      envir = ns,
+      mode = "function",
+      inherits = FALSE
+    )
+    if (is.function(method)) {
+      return(method(x, ...))
+    }
+  }
+
+  stop(
+    "No as_mpcurve() method for object of class ",
+    paste(sprintf("'%s'", classes), collapse = ", "),
+    ".",
+    call. = FALSE
+  )
+}
 
 
 #' Extract fitted prior values
 #'
 #' @description
-#' Returns the current fitted/effective prior from a \code{cavi},
-#' \code{soft_partition_cavi}, or \code{mpcurve} object. For position priors,
-#' single-ordering fits return a numeric length-\code{K} vector while partition
-#' fits return a named list of vectors unless a specific ordering is requested.
-#' For partition priors, \code{ordering = NULL} returns the full prior record
-#' and a specific \code{ordering} returns the corresponding effective
-#' \eqn{\omega_m} mass.
+#' Returns the current fitted/effective prior from an \code{mpcurve} object.
+#' For position priors, single-ordering fits return a numeric length-\code{K}
+#' vector while partition fits return a named list of vectors unless a specific
+#' ordering is requested. For partition priors, \code{ordering = NULL} returns
+#' the full prior record and a specific \code{ordering} returns the
+#' corresponding effective \eqn{\omega_m} mass.
 #'
-#' @param x A fitted MPCurver object.
+#' @param x A fitted \code{mpcurve} object.
 #' @param type One of \code{"position"} or \code{"partition"}.
 #' @param ordering Optional ordering label or 1-based ordering index.
 #' @param ... Unused.
@@ -1247,7 +1244,7 @@ fitted_prior.mpcurve <- function(x,
 }
 
 
-#' @export
+#' @noRd
 fitted_prior.cavi <- function(x,
                               type = c("position", "partition"),
                               ordering = NULL,
@@ -1260,7 +1257,7 @@ fitted_prior.cavi <- function(x,
 }
 
 
-#' @export
+#' @noRd
 fitted_prior.soft_partition_cavi <- function(x,
                                              type = c("position", "partition"),
                                              ordering = NULL,
@@ -1273,7 +1270,7 @@ fitted_prior.soft_partition_cavi <- function(x,
 }
 
 
-#' @export
+#' @noRd
 as_mpcurve.csmooth_em <- function(x, ...) {
   params <- x$params
 
@@ -1322,7 +1319,7 @@ as_mpcurve.csmooth_em <- function(x, ...) {
 }
 
 
-#' @export
+#' @noRd
 as_mpcurve.cavi <- function(x, ...) {
   params <- x$params
   mu_mat <- x$posterior$mean
@@ -1370,7 +1367,7 @@ as_mpcurve.cavi <- function(x, ...) {
 }
 
 
-#' @export
+#' @noRd
 as_mpcurve.smooth_em <- function(x, ...) {
   params <- x$params
 
@@ -1426,7 +1423,7 @@ as_mpcurve.smooth_em <- function(x, ...) {
 }
 
 
-#' @export
+#' @noRd
 as_mpcurve.soft_partition_cavi <- function(x, ...) {
   M <- x$M %||% 2L
   ord_labels_full <- colnames(x$pi_weights) %||% .mpcurve_ordering_labels(M)
@@ -1509,12 +1506,17 @@ as_mpcurve.soft_partition_cavi <- function(x, ...) {
 
 # ---- S3 methods ------------------------------------------------
 
+#' Print an \code{mpcurve} fit
+#'
+#' @param x An \code{mpcurve} object.
+#' @param ... Ignored.
+#'
+#' @return Invisibly returns \code{x}.
 #' @export
 print.mpcurve <- function(x, ...) {
   idim <- x$intrinsic_dim %||% 1L
   active_dim <- x$active_intrinsic_dim %||% .mpcurve_active_intrinsic_dim(x)
   displayed_dim <- x$displayed_intrinsic_dim %||% if (.mpcurve_is_partition(x)) length(x$fits %||% list()) else 1L
-  priors <- .mpcurve_get_priors(x)
   is_partition <- .mpcurve_is_partition(x)
 
   if (is_partition) {
@@ -1531,6 +1533,7 @@ print.mpcurve <- function(x, ...) {
     }
     cat(sprintf("  Dim (req/act/view): %d / %d / %d\n", idim, active_dim, displayed_dim))
     cat(sprintf("  n / d / K      : %d / %d / %d\n", x$n, x$d, x$K))
+    cat(sprintf("  Iterations     : %d\n", x$iter))
     part <- x$partition
     if (!is.null(part)) {
       tbl <- table(part$assign)
@@ -1553,43 +1556,12 @@ print.mpcurve <- function(x, ...) {
                       paste(frozen, collapse = ", ")))
         }
       }
-      events <- part$ordering_events %||% x$ordering_events %||% list()
-      if (length(events) > 0L) {
-        event_types <- vapply(events, `[[`, character(1), "event")
-        cat(sprintf("  Events         : %d freeze\n",
-                    sum(event_types == "freeze")))
-      }
-    }
-    if (!is.null(priors$position)) {
-      cat(sprintf("  Position prior : %s\n", priors$position$mode))
-    }
-    if (!is.null(priors$partition)) {
-      cat(sprintf("  Partition prior: %s\n", priors$partition$mode))
     }
     if (length(x$objective_history) > 0L)
       cat(sprintf("  Objective (last): %.6f\n",
                   tail(x$objective_history, 1L)))
-    drop_view <- isTRUE((x$control %||% list())$drop_unused_ordering)
-    cat(sprintf("  Objective type : %s\n",
-                if (drop_view) {
-                  "post-drop fit (not comparable across requested dimensions)"
-                } else {
-                  "fixed-requested-M comparison"
-                }))
     if (!is.null(x$converged)) {
       cat(sprintf("  Converged      : %s\n", x$converged))
-    }
-    conv_info <- x$convergence_info %||% x$fit$convergence_info
-    if (!is.null(conv_info)) {
-      if (!is.null(conv_info$last_rel_delta) && is.finite(conv_info$last_rel_delta)) {
-        cat(sprintf("  Phase-2 rel_delta   : %.3e\n", conv_info$last_rel_delta))
-      }
-      if (!is.null(conv_info$consecutive_small_steps)) {
-        cat(sprintf("  Small-step streak: %d\n", conv_info$consecutive_small_steps))
-      }
-      if (!is.null(conv_info$reason) && nzchar(conv_info$reason)) {
-        cat(sprintf("  Reason         : %s\n", conv_info$reason))
-      }
     }
   } else {
     cat("MPCurve fit\n")
@@ -1604,21 +1576,14 @@ print.mpcurve <- function(x, ...) {
       ))
     }
     cat(sprintf("  Model          : %s\n",  x$modelName))
-    cat(sprintf("  n / d / K : %d / %d / %d\n", x$n, x$d, x$K))
+    cat(sprintf("  Intrinsic dim  : %d\n", idim))
+    cat(sprintf("  n / d / K      : %d / %d / %d\n", x$n, x$d, x$K))
     cat(sprintf("  Iterations     : %d\n",  x$iter))
-    if (!is.null(priors$position)) {
-      cat(sprintf("  Position prior : %s\n", priors$position$mode))
-    }
     if (!is.null(x$converged)) {
       cat(sprintf("  Converged      : %s\n", if (isTRUE(x$converged)) "yes" else "no"))
     }
     if (length(x$elbo_trace) > 0L)
-      cat(sprintf("  ELBO (last)   : %.6f\n", tail(x$elbo_trace, 1L)))
-    ml_trace <- x$fit$ml_trace
-    if (!is.null(ml_trace) && length(ml_trace) > 0L)
-      cat(sprintf("  ML   (last)   : %.6f\n", tail(ml_trace, 1L)))
-    if (length(x$loglik_trace) > 0L)
-      cat(sprintf("  logLik (last): %.6f\n", tail(x$loglik_trace, 1L)))
+      cat(sprintf("  ELBO (last)    : %.6f\n", tail(x$elbo_trace, 1L)))
   }
   invisible(x)
 }
@@ -1687,6 +1652,7 @@ summary.mpcurve <- function(object, ...) {
 }
 
 
+#' @rdname summary.mpcurve
 #' @export
 print.summary.mpcurve <- function(x, ...) {
   idim <- x$intrinsic_dim %||% 1L
@@ -2072,17 +2038,15 @@ plot.mpcurve <- function(
 #' Continue CAVI iterations on an existing \code{mpcurve} fit
 #'
 #' Public continuation wrapper for MPCurve's recommended CAVI paths. For
-#' single-ordering fits, this delegates to \code{\link{do_cavi}}. For partition
-#' fits, it continues the exact \eqn{T = 1} phase of
-#' \code{\link{soft_partition_cavi}} using the stored frozen-ordering and
-#' assignment-prior controls.
+#' single-ordering fits, this continues the underlying CAVI backend. For
+#' partition fits, it continues the exact \eqn{T = 1} phase of the stored
+#' partition-CAVI fit using the existing frozen-ordering and assignment-prior
+#' controls.
 #'
-#' Legacy smoothEM/csmoothEM continuation remains available through the lower
-#' level \code{do_smoothEM()} and \code{do_csmoothEM()} functions, not through
-#' this high-level wrapper.
+#' Legacy smoothEM/csmoothEM continuation is not part of this high-level
+#' interface.
 #'
-#' @param object An \code{mpcurve} object wrapping a \code{cavi} or
-#'   \code{soft_partition_cavi} fit.
+#' @param object An \code{mpcurve} object wrapping a CAVI fit.
 #' @param iter Integer >= 1. Maximum number of additional CAVI sweeps (single
 #'   ordering) or exact \code{T = 1} partition steps.
 #' @param lambda Optional scalar or d-vector. For single-ordering CAVI only:
@@ -2454,12 +2418,14 @@ do_mpcurve <- function(object,
 #' \code{intrinsic_dim >= 2} for the partition-CAVI model with one ordering per
 #' latent dimension.
 #'
-#' Legacy \code{smooth_em} and \code{csmooth_em} algorithms remain available as
-#' lower-level compatibility functions, but they are no longer part of the
-#' public \code{fit_mpcurve()} interface and are not the active development
-#' path for the package.
+#' MPCurver's public fitting interface is CAVI-only. Legacy \code{smooth_em}
+#' and \code{csmooth_em} code paths remain in the package implementation for
+#' internal compatibility and regression testing, but they are not part of the
+#' documented public workflow.
 #'
 #' @param X Numeric matrix (n x d) of observations.
+#' @param algorithm Public backend selector. Must be \code{"cavi"}; legacy
+#'   backend values are rejected with an error.
 #' @param method Initialisation method(s) for the trajectory ordering. If
 #'   \code{num_cores > 1} and \code{length(method) > 1} in the single-ordering
 #'   case, all methods are run in parallel and a named list of fits is
@@ -2519,7 +2485,7 @@ do_mpcurve <- function(object,
 #'   broadcast to all orderings.
 #' @param partition_prior For partition fits only: either \code{"adaptive"} or
 #'   \code{"fixed"} for the ordering-usage prior \code{omega}. The adaptive
-#'   mode uses an empirical-Bayes update \code{omega_hat \propto colSums(w)}
+#'   mode uses an empirical-Bayes update proportional to \code{colSums(w)}
 #'   over the currently active orderings. The fixed mode keeps a constant prior
 #'   and renormalizes it over the active ordering set after any drops/freeze
 #'   events.
@@ -2594,6 +2560,7 @@ do_mpcurve <- function(object,
 #' @export
 fit_mpcurve <- function(
     X,
+    algorithm = c("cavi", "csmooth_em", "smooth_em"),
     method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
     K = NULL,
     rw_q = 2,
@@ -2642,6 +2609,7 @@ fit_mpcurve <- function(
   num_cores <- as.integer(num_cores)
   intrinsic_dim <- as.integer(intrinsic_dim)
   greedy <- match.arg(greedy)
+  algorithm <- match.arg(algorithm)
   partition_init <- match.arg(partition_init)
   position_prior <- match.arg(position_prior)
   partition_prior_missing <- missing(partition_prior)
@@ -2656,10 +2624,16 @@ fit_mpcurve <- function(
   smooth_fit_lambda_mode <- match.arg(smooth_fit_lambda_mode)
   lambda_sd_prior_rate <- .normalize_lambda_sd_prior_rate(lambda_sd_prior_rate)
   dots <- list(...)
-  algo_check <- .mpcurve_extract_algorithm_arg(dots, caller = "fit_mpcurve()")
-  dots <- algo_check$dots
   .mpcurve_check_legacy_public_args(dots, caller = "fit_mpcurve()")
   max_converge_iter <- max_converge_iter %||% as.integer(iter)
+
+  if (!identical(algorithm, "cavi")) {
+    stop(
+      "fit_mpcurve() is now a CAVI-only public wrapper. ",
+      "Requested `algorithm = \"", algorithm, "\"` is no longer supported here.",
+      call. = FALSE
+    )
+  }
 
   fit_args <- list(
     X = X,

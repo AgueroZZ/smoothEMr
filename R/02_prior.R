@@ -14,7 +14,7 @@
 #' @param Q d x d innovation covariance (default 0.5 * I_d).
 #' @param P0 d x d initial precision (default I_d).
 #' @return (dK) x (dK) precision matrix (dense).
-#' @export
+#' @noRd
 make_VAR1_precision <- function(K, d, A = NULL, Q = NULL, P0 = NULL) {
   if (K < 1 || K != as.integer(K)) stop("K must be a positive integer.")
   if (d < 1 || d != as.integer(d)) stop("d must be a positive integer.")
@@ -79,7 +79,7 @@ make_VAR1_precision <- function(K, d, A = NULL, Q = NULL, P0 = NULL) {
 #' @param ridge nonnegative scalar ridge added to the 1D precision.
 #' @param sparse logical; return a sparse Matrix object if TRUE.
 #' @return (dK) x (dK) precision matrix.
-#' @export
+#' @noRd
 make_random_walk_precision <- function(K, d, q = 1, lambda = 1, ridge = 0, sparse = FALSE) {
   if (K < 1 || K != as.integer(K)) stop("K must be a positive integer.")
   if (d < 1 || d != as.integer(d)) stop("d must be a positive integer.")
@@ -117,7 +117,7 @@ make_random_walk_precision <- function(K, d, q = 1, lambda = 1, ridge = 0, spars
 #' @param lambda nonnegative scalar precision multiplier.
 #' @param ridge nonnegative ridge added to improve conditioning.
 #' @return sparse (d*K^2) x (d*K^2) precision matrix (Matrix).
-#' @export
+#' @noRd
 make_lattice_rwq_precision <- function(K, d, q = 1, lambda = 1, ridge = 0) {
   if (!requireNamespace("Matrix", quietly = TRUE)) {
     stop("Please install.packages('Matrix')")
@@ -157,7 +157,7 @@ make_lattice_rwq_precision <- function(K, d, q = 1, lambda = 1, ridge = 0) {
 #' @param lambda nonnegative scalar multiplier.
 #' @param ridge nonnegative scalar ridge added to Q1D.
 #' @return sparse Matrix of size (d*K) x (d*K).
-#' @export
+#' @noRd
 make_random_walk_precision_sparse <- function(K, d, q = 1, lambda = 1, ridge = 0) {
   if (!requireNamespace("Matrix", quietly = TRUE)) {
     stop("Please install.packages('Matrix')")
@@ -219,7 +219,7 @@ make_random_walk_precision_sparse <- function(K, d, q = 1, lambda = 1, ridge = 0
 #' @param lambda nonnegative scalar multiplier.
 #' @param ridge nonnegative ridge added to Q1D (and thus Q2D) for conditioning.
 #' @return sparse Matrix of size (d*K^2) x (d*K^2).
-#' @export
+#' @noRd
 make_lattice_rwq_precision_sparse <- function(K, d, q = 1, lambda = 1, ridge = 0) {
   if (!requireNamespace("Matrix", quietly = TRUE)) {
     stop("Please install.packages('Matrix')")

@@ -135,7 +135,7 @@ compute_C_by_coord_csmooth <- function(X, Gamma, params, Q_K, lambda_vec,
 #'   - C_coord: length-d vector
 #'   - global_logpi, global_entropy: scalars
 #'   - logdetH_coord: length-d vector
-#' @export
+#' @noRd
 score_features_onefit <- function(fit, X = NULL, include_constant = TRUE) {
   `%||%` <- function(a, b) if (!is.null(a)) a else b
   if (!inherits(fit, "csmooth_em")) stop("fit must be a 'csmooth_em' object.")
@@ -174,7 +174,7 @@ score_features_onefit <- function(fit, X = NULL, include_constant = TRUE) {
 #'   - assign: length-d character vector taking values \code{"A"} or \code{"B"}
 #'   - score_diff: length-d vector (CA - CB)
 #'   - CA, CB: length-d vectors of per-feature scores
-#' @export
+#' @noRd
 partition_features_twofits <- function(fitA, fitB, X = NULL, delta = 0, include_constant = TRUE) {
   if (!inherits(fitA, "csmooth_em") || !inherits(fitB, "csmooth_em")) {
     stop("fitA and fitB must both be 'csmooth_em' objects.")
@@ -212,7 +212,7 @@ partition_features_twofits <- function(fitA, fitB, X = NULL, delta = 0, include_
 #' @param keep_cols Integer vector of feature indices to keep (1-based, in the current fit's feature space).
 #'
 #' @return A \code{csmooth_em} object restricted to the selected features.
-#' @export
+#' @noRd
 subset_csmooth_em_fit <- function(fit, keep_cols) {
   `%||%` <- function(a, b) if (!is.null(a)) a else b
   if (!inherits(fit, "csmooth_em")) stop("fit must be a 'csmooth_em' object.")
@@ -304,7 +304,7 @@ subset_csmooth_em_fit <- function(fit, keep_cols) {
 #'   \item \code{history}: data.frame with per-round diagnostics (\code{C_total}, \code{min_Cj}, etc.).
 #' }
 #'
-#' @export
+#' @noRd
 greedy_backward_filter_csmooth <- function(
     X,
     method = c("fiedler", "PCA", "tSNE", "pcurve", "random"),
@@ -527,7 +527,7 @@ append_coord_to_params_csmooth <- function(params, one) {
 #' }
 #'
 #' @seealso \code{\link{score_one_coord_csmooth}}, \code{\link{forward_two_ordering_partition_csmooth}}
-#' @export
+#' @noRd
 score_feature_given_Gamma <- function(
     xj,
     Gamma,
@@ -703,7 +703,7 @@ score_feature_given_Gamma <- function(
 #'   \item \code{one}: list with \code{mu_vec} (length K) and \code{sigma2} (scalar).
 #' }
 #' @keywords internal
-#' @export
+#' @noRd
 score_one_coord_csmooth <- function(
     X, j, Gamma, Q_K,
     rw_q = 2,
@@ -829,7 +829,7 @@ score_one_coord_csmooth <- function(
 #' @seealso \code{\link{fit_mpcurve}}, \code{\link{do_csmoothEM}},
 #'   \code{\link{score_feature_given_Gamma}},
 #'   \code{\link{compute_C_by_coord_csmooth}}
-#' @export
+#' @noRd
 forward_two_ordering_partition_csmooth <- function(
     X,
     K = 30,
@@ -1389,7 +1389,7 @@ append_coord_to_fit_csmooth <- function(fit, xj,
 #'   \code{\link{score_feature_given_Gamma}},
 #'   \code{\link{append_coord_to_fit_csmooth}},
 #'   \code{\link{drop_coord_from_fit_csmooth}}
-#' @export
+#' @noRd
 backward_two_ordering_partition_csmooth <- function(
     X,
     K = 50,

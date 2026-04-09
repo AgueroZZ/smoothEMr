@@ -25,11 +25,16 @@ CLAUDE_5MIN.md
 AGENTS.md
 PACKAGE_OVERVIEW_FOR_AGENTS.md
 
+# Agent coordination notes are versioned on purpose.
+# Keep log/ and plan/ out of .gitignore; exclude them from package builds instead.
+
 # Internal experiments and diagnostics
-vignettes/internal/
 vignettes/*_files/
-plan/
+internal/
 scripts/
+!scripts/
+scripts/*
+!scripts/build_public_site.R
 output/
 tmp/
 debug_PCA.R

@@ -14,6 +14,7 @@
 #'   \code{rank_deficiency} eigenvalues (useful when you know the null-space
 #'   dimension a priori).
 #' @return Scalar generalized log-determinant.
+#' @noRd
 generalized_logdet <- function(Q, eigen_tol = NULL, rank_deficiency = 0) {
   # Avoid unnecessary densification of sparse matrices
   if (!is.matrix(Q)) Q <- as.matrix(Q)
@@ -248,6 +249,7 @@ generalized_logdet <- function(Q, eigen_tol = NULL, rank_deficiency = 0) {
 #'
 #' @param x Numeric vector.
 #' @return log(sum(exp(x))) computed stably.
+#' @noRd
 logsumexp <- function(x) {
   if (!length(x)) return(-Inf)
   m <- max(x)
@@ -264,6 +266,7 @@ logsumexp <- function(x) {
 #'   \code{sigma} is a list of covariance matrices.
 #' @param jitter Nonnegative diagonal jitter added if Cholesky fails.
 #' @return Updated params list with \code{invSigma} and \code{logdet}.
+#' @noRd
 init_cov_cache_fast <- function(params, jitter = 0) {
   K <- length(params$pi)
   if (is.null(params$sigma) || length(params$sigma) != K) {
@@ -306,6 +309,7 @@ init_cov_cache_fast <- function(params, jitter = 0) {
 #' @param params A \code{csmooth_em} parameter list with a \code{sigma2} field.
 #' @param modelName One of \code{"homoskedastic"} or \code{"heteroskedastic"}.
 #' @return Updated \code{params} with \code{$invsig2} and \code{$logdet}.
+#' @noRd
 cache_csmooth_params <- function(params,
     modelName = c("homoskedastic", "heteroskedastic")) {
   modelName <- match.arg(modelName)

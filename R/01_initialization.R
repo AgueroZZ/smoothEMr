@@ -30,7 +30,7 @@
 #' @param K number of mixture components.
 #' @param ordering if TRUE, reorder components by a pivot dimension of mu.
 #' @return list(pi, mu, sigma)
-#' @export
+#' @noRd
 make_default_init <- function(X, K, ordering = TRUE) {
   X <- as.matrix(X)
   if (nrow(X) < 1) stop("X must have at least one row.")
@@ -69,7 +69,7 @@ make_default_init <- function(X, K, ordering = TRUE) {
 #' @param discretization one of "equal", "quantile", "kmeans".
 #' @param na_action how to handle NA in ordering_vec: "drop" or "error".
 #' @return list(pi, mu, sigma, keep_idx, cluster_rank)
-#' @export
+#' @noRd
 make_init <- function(
     X, ordering_vec, K,
     assume_EEI = TRUE,
@@ -739,7 +739,7 @@ isomap_ordering <- function(
 #' @param discretization discretization method passed to make_init().
 #' @param ... forwarded to the ordering method function.
 #' @return list(pi, mu, sigma, keep_idx, cluster_rank, ordering)
-#' @export
+#' @noRd
 initialize_ordering <- function(
     X, K,
     method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
@@ -834,7 +834,7 @@ initialize_ordering <- function(
 #'   Initialization provenance is stored in \code{meta$init}, including \code{lambda_init_est}
 #'   and \code{lambda_init_source} when \code{adaptive=TRUE}.
 #'
-#' @export
+#' @noRd
 #'
 #' @examples
 #' \dontrun{
@@ -1216,7 +1216,7 @@ initialize_smoothEM <- function(
 #'   \item \code{summary}: a data.frame summarizing last ELBO / last objective / last lambda for each method.
 #' }
 #'
-#' @export
+#' @noRd
 parallel_initial <- function(
     X,
     methods = c("PCA", "tSNE", "random", "fiedler", "multi_scale", "pcurve"),
@@ -1426,7 +1426,7 @@ parallel_initial <- function(
 #'   \item \code{$meta$initial_search}: list with the full fits, summary table, and options.
 #' }
 #'
-#' @export
+#' @noRd
 optimize_initial <- function(
     X,
     methods = c("PCA", "tSNE", "random", "fiedler", "multi_scale", "pcurve"),

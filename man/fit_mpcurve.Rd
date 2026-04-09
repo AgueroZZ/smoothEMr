@@ -6,6 +6,7 @@
 \usage{
 fit_mpcurve(
   X,
+  algorithm = c("cavi", "csmooth_em", "smooth_em"),
   method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
   K = NULL,
   rw_q = 2,
@@ -53,6 +54,9 @@ fit_mpcurve(
 }
 \arguments{
 \item{X}{Numeric matrix (n x d) of observations.}
+
+\item{algorithm}{Public backend selector. Must be \code{"cavi"}; legacy
+backend values are rejected with an error.}
 
 \item{method}{Initialisation method(s) for the trajectory ordering. If
 \code{num_cores > 1} and \code{length(method) > 1} in the single-ordering
@@ -132,7 +136,7 @@ broadcast to all orderings.}
 
 \item{partition_prior}{For partition fits only: either \code{"adaptive"} or
 \code{"fixed"} for the ordering-usage prior \code{omega}. The adaptive
-mode uses an empirical-Bayes update \code{omega_hat \propto colSums(w)}
+mode uses an empirical-Bayes update proportional to \code{colSums(w)}
 over the currently active orderings. The fixed mode keeps a constant prior
 and renormalizes it over the active ordering set after any drops/freeze
 events.}
@@ -232,8 +236,8 @@ paths. Use \code{intrinsic_dim = 1} for a standard single-ordering fit and
 latent dimension.
 }
 \details{
-Legacy \code{smooth_em} and \code{csmooth_em} algorithms remain available as
-lower-level compatibility functions, but they are no longer part of the
-public \code{fit_mpcurve()} interface and are not the active development
-path for the package.
+MPCurver's public fitting interface is CAVI-only. Legacy \code{smooth_em}
+and \code{csmooth_em} code paths remain in the package implementation for
+internal compatibility and regression testing, but they are not part of the
+documented public workflow.
 }

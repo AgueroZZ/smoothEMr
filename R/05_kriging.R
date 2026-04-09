@@ -5,7 +5,7 @@
 #' @param tol Nonnegative numeric tolerance for matching.
 #'
 #' @return Integer vector of indices into loc_new.
-#' @export
+#' @noRd
 match_locations_to_grid <- function(loc_old, loc_new, tol = 1e-8) {
   loc_old <- as.numeric(loc_old)
   loc_new <- as.numeric(loc_new)
@@ -57,7 +57,7 @@ match_locations_to_grid <- function(loc_old, loc_new, tol = 1e-8) {
 #' @param m_max Nonnegative integer; the finest level exponent.
 #'
 #' @return List with \code{m_max}, \code{K_final}, \code{u_final}, \code{idx_levels}, \code{K_levels}.
-#' @export
+#' @noRd
 make_hierarchical_levels <- function(m_max = 6) {
   if (!is.numeric(m_max) || length(m_max) != 1 || m_max < 0 || m_max != as.integer(m_max)) {
     stop("m_max must be a nonnegative integer.")
@@ -98,7 +98,7 @@ make_hierarchical_levels <- function(m_max = 6) {
 #' @param q RW order (e.g. 2 for RW2).
 #'
 #' @return Scalar \code{lambda_level}.
-#' @export
+#' @noRd
 lambda_scale_for_spacing <- function(lambda_final, K_final, K_level, q = 2) {
   if (!is.numeric(lambda_final) || length(lambda_final) != 1) stop("lambda_final must be a scalar.")
   if (!is.numeric(K_final) || length(K_final) != 1 || K_final < 2) stop("K_final must be >= 2.")
@@ -122,7 +122,7 @@ lambda_scale_for_spacing <- function(lambda_final, K_final, K_level, q = 2) {
 #' @param keep_obs If TRUE, returns full length K_new (or K_new x p) with obs filled in.
 #'
 #' @return Full vector/matrix if keep_obs=TRUE; else list(pred_idx, f_pred).
-#' @export
+#' @noRd
 kriging_from_precision <- function(f_obs, idx_obs, Q_new,
                                    nugget = 0,
                                    keep_obs = TRUE) {
@@ -206,7 +206,7 @@ kriging_from_precision <- function(f_obs, idx_obs, Q_new,
 #' @param nugget Nonnegative scalar passed to kriging_from_precision().
 #'
 #' @return List(Mu_full, mu_full_list, idx_obs).
-#' @export
+#' @noRd
 krige_mu_list_to_full_grid <- function(mu_list_obs, u_obs, u_final, Q_final_1d,
                                        nugget = 0) {
   if (!is.list(mu_list_obs) || length(mu_list_obs) < 1) stop("mu_list_obs must be a nonempty list.")
@@ -246,7 +246,7 @@ krige_mu_list_to_full_grid <- function(mu_list_obs, u_obs, u_final, Q_final_1d,
 #' @param include.data If TRUE, include data in returned fits.
 #'
 #' @return List(grid, Q_final_1d, fits, mu_full_history, mu_full_list_final, meta_history, mclust).
-#' @export
+#' @noRd
 progressive_smoothEM <- function(
     data,
     m_max = 6,
@@ -425,7 +425,7 @@ progressive_smoothEM <- function(
 #' @param legend_prefix Prefix for coordinate labels in the legend.
 #' @param bty Legend box type.
 #' @return Invisibly returns a list with plot inputs.
-#' @export
+#' @noRd
 plot_mu_history <- function(mu_full_history,
                             u_final,
                             history_i = 1,
@@ -529,7 +529,7 @@ plot_mu_history <- function(mu_full_history,
 #' @param include_highlight_in_ylim Logical; should highlighted points affect the
 #'   computed overlay y-limits?
 #' @param label_points Logical; label highlighted points by grid index?
-#' @export
+#' @noRd
 plot_coordinate_change <- function(mu_full_history,
                                    u_final,
                                    coord,
@@ -681,7 +681,7 @@ plot_coordinate_change <- function(mu_full_history,
 #' @param res Result returned by \code{progressive_smoothEM()}.
 #' @param h History index to extract.
 #' @param normalize_gamma Logical; renormalize rows of the returned gamma matrix?
-#' @export
+#' @noRd
 get_history_block <- function(res, h, normalize_gamma = TRUE) {
   if (is.null(res$meta_history)) stop("res must contain meta_history.")
   if (h < 1 || h > length(res$meta_history)) stop("h out of range.")
@@ -730,7 +730,7 @@ get_history_block <- function(res, h, normalize_gamma = TRUE) {
 #' @param type Position summary to compare: posterior mean or MAP.
 #' @param add_identity Logical; draw the identity line?
 #' @param main Optional plot title.
-#' @export
+#' @noRd
 compare_positions_by_history <- function(res, h1, h2,
                                          type = c("mean", "max"),
                                          add_identity = TRUE,

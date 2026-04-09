@@ -1,7 +1,7 @@
 #' MPCurver package
 #'
 #' CAVI-first trajectory and pseudotime inference with legacy smoothEM
-#' backends retained for backward compatibility.
+#' backends retained for internal benchmarking and compatibility checks.
 #'
 #' @name MPCurver
 #' @keywords internal

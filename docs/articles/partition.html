@@ -40,11 +40,6 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Case studies</h6></li>
     <li><a class="dropdown-item" href="../articles/fitness.html">Analyzing the eLife Fitness Dataset with MPCurver</a></li>
-    <li><hr class="dropdown-divider"></li>
-    <li><h6 class="dropdown-header" data-toc-skip>Legacy</h6></li>
-    <li><a class="dropdown-item" href="../articles/Intro.html">Introduction to MPCurver</a></li>
-    <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul>
 </li>
       </ul>
@@ -52,6 +47,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/AgueroZZ/MPCurver/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -68,7 +64,7 @@
       <h1>Feature Partitioning with MPCurver</h1>
             
       
-
+      <small class="dont-index">Source: <a href="https://github.com/AgueroZZ/MPCurver/blob/HEAD/vignettes/partition.Rmd" class="external-link"><code>vignettes/partition.Rmd</code></a></small>
       <div class="d-none name"><code>partition.Rmd</code></div>
     </div>
 
@@ -123,7 +119,7 @@ The standard single-ordering fit is the special case
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>M</mi><mo>=</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">M = 1</annotation></semantics></math>.</p>
 </div>
 <div class="section level2">
-<h2 id="the-soft-partition-algorithm">The soft partition algorithm<a class="anchor" aria-label="anchor" href="#the-soft-partition-algorithm"></a>
+<h2 id="the-partition-cavi-algorithm">The partition-CAVI algorithm<a class="anchor" aria-label="anchor" href="#the-partition-cavi-algorithm"></a>
 </h2>
 <p><code>MPCurver</code> uses a soft partition approach: rather than
 assigning each feature to exactly one ordering, it maintains
@@ -173,11 +169,12 @@ w_{jm} \;\propto\; \exp\!\bigl(\ell_{jm}^{\mathrm{like}} / T\bigr).
 </annotation></semantics></math></p>
 <p>If <code>assignment_prior = "dirichlet"</code>, the score is
 augmented by the current variational expectation of the ordering-usage
-weights: <span class="math display">$$
-w_{jm} \;\propto\; \exp\!\Bigl(
+weights:
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>w</mi><mrow><mi>j</mi><mi>m</mi></mrow></msub><mspace width="0.278em"></mspace><mo>∝</mo><mspace width="0.278em"></mspace><mo>exp</mo><mspace width="-0.167em"></mspace><mrow><mo stretchy="true" form="prefix">(</mo><mo minsize="1.2" maxsize="1.2" stretchy="false" form="prefix">[</mo><msubsup><mo>ℓ</mo><mrow><mi>j</mi><mi>m</mi></mrow><mrow><mi mathvariant="normal">l</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">k</mi><mi mathvariant="normal">e</mi></mrow></msubsup><mo>+</mo><msub><mi>𝔼</mi><mi>q</mi></msub><mo>log</mo><msub><mi>ω</mi><mi>m</mi></msub><mo minsize="1.2" maxsize="1.2" stretchy="false" form="postfix">]</mo><mi>/</mi><mi>T</mi><mo stretchy="true" form="postfix">)</mo></mrow><mo>,</mo></mrow><annotation encoding="application/x-tex">
+w_{jm} \;\propto\; \exp\!\left(
 \bigl[\ell_{jm}^{\mathrm{like}} + \mathbb{E}_q \log \omega_m\bigr] / T
-\Bigr),
-$$</span> with
+\right),
+</annotation></semantics></math> with
 <math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>q</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>ω</mi><mo stretchy="true" form="postfix">)</mo></mrow><mo>=</mo><mo>Dirichlet</mo><mspace width="-0.167em"></mspace><mrow><mo stretchy="true" form="prefix">(</mo><mi>α</mi><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><msub><mi>w</mi><mrow><mi>j</mi><mn>1</mn></mrow></msub><mo>,</mo><mi>…</mi><mo>,</mo><mi>α</mi><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><msub><mi>w</mi><mrow><mi>j</mi><mi>M</mi></mrow></msub><mo stretchy="true" form="postfix">)</mo></mrow><mi>.</mi></mrow><annotation encoding="application/x-tex">
 q(\omega)
 =
@@ -339,16 +336,16 @@ show a small decrease.</p>
 <span><span class="co">#&gt; [1] 1e-05</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $phase2_iters</span></span>
-<span><span class="co">#&gt; [1] 67</span></span>
+<span><span class="co">#&gt; [1] 100</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $last_delta</span></span>
-<span><span class="co">#&gt; [1] 0.1126098</span></span>
+<span><span class="co">#&gt; [1] 0.1527344</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $last_rel_delta</span></span>
-<span><span class="co">#&gt; [1] 9.307088e-06</span></span>
+<span><span class="co">#&gt; [1] 1.266074e-05</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $consecutive_small_steps</span></span>
-<span><span class="co">#&gt; [1] 3</span></span>
+<span><span class="co">#&gt; [1] 0</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $min_phase2_iter</span></span>
 <span><span class="co">#&gt; [1] 3</span></span>
@@ -357,10 +354,10 @@ show a small decrease.</p>
 <span><span class="co">#&gt; [1] 3</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $converged</span></span>
-<span><span class="co">#&gt; [1] TRUE</span></span>
+<span><span class="co">#&gt; [1] FALSE</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $reason</span></span>
-<span><span class="co">#&gt; [1] "Phase-2 rel_delta stayed below 1.0e-05 for 3 consecutive nonnegative steps."</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] "Stopped after 100 phase-2 iterations without meeting the 3-step convergence rule (last rel_delta=1.266e-05)."</span></span></code></pre></div>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition</span><span class="op">$</span><span class="va">objective_history</span>, type <span class="op">=</span> <span class="st">"b"</span>, pch <span class="op">=</span> <span class="fl">19</span>, cex <span class="op">=</span> <span class="fl">0.7</span>,</span>
 <span>     xlab <span class="op">=</span> <span class="st">"Iteration"</span>,</span>
@@ -407,9 +404,12 @@ Both orderings side by side.
 <h3 id="partition-accuracy">Partition accuracy<a class="anchor" aria-label="anchor" href="#partition-accuracy"></a>
 </h3>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">soft_acc</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/evaluate_partition.html">evaluate_partition</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>assign <span class="op">=</span> <span class="va">fit_partition</span><span class="op">$</span><span class="va">partition</span><span class="op">$</span><span class="va">assign</span><span class="op">)</span>, <span class="va">truth</span></span>
-<span><span class="op">)</span><span class="op">$</span><span class="va">accuracy</span></span>
+<code class="sourceCode R"><span><span class="va">pred_assign</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">fit_partition</span><span class="op">$</span><span class="va">partition</span><span class="op">$</span><span class="va">assign</span><span class="op">)</span></span>
+<span><span class="va">truth_assign</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">truth</span><span class="op">)</span></span>
+<span><span class="va">soft_acc</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">pred_assign</span> <span class="op">==</span> <span class="va">truth_assign</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">pred_assign</span> <span class="op">!=</span> <span class="va">truth_assign</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Soft partition accuracy:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">soft_acc</span>, <span class="fl">4</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Soft partition accuracy: 1</span></span></code></pre></div>
 <p>Compute the correlation between the inferred pseudotimes and the true
@@ -420,9 +420,9 @@ orderings:</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Correlation with true orderings:\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Correlation with true orderings:</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Ordering 1:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">cor1</span>, <span class="fl">4</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Ordering 1: 0.0455</span></span>
+<span><span class="co">#&gt; Ordering 1: 0.0454</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Ordering 2:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">cor2</span>, <span class="fl">4</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Ordering 2: -0.0043</span></span></code></pre></div>
+<span><span class="co">#&gt; Ordering 2: 0.0362</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="continuing-a-fit">Continuing a fit<a class="anchor" aria-label="anchor" href="#continuing-a-fit"></a>
@@ -466,7 +466,7 @@ extend the vector accordingly:</p>
 <div class="section level2">
 <h2 id="greedy-dimension-selection">Greedy dimension selection<a class="anchor" aria-label="anchor" href="#greedy-dimension-selection"></a>
 </h2>
-<p>Dimension selection is now unified under the soft-CAVI framework
+<p>Dimension selection is now unified under the partition-CAVI workflow
 through <code>fit_mpcurve(greedy = ...)</code>.</p>
 <ul>
 <li>

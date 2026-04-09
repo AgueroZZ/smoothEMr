@@ -2897,7 +2897,7 @@
 #'
 #' @return A list with \code{feature_score}, \code{global_terms}, and
 #'   \code{entropy_u}.
-#' @export
+#' @noRd
 score_features_onefit_cavi <- function(fit, X = NULL, include_prior = TRUE) {
   if (!inherits(fit, "cavi")) stop("fit must be a 'cavi' object.")
   X <- as.matrix(X %||% fit$data)
@@ -2932,7 +2932,7 @@ score_features_onefit_cavi <- function(fit, X = NULL, include_prior = TRUE) {
 #' @param include_prior Logical.
 #'
 #' @return A list with \code{assign}, \code{score_diff}, \code{CA}, and \code{CB}.
-#' @export
+#' @noRd
 partition_features_twofits_cavi <- function(fitA, fitB, X = NULL, delta = 0,
                                             include_prior = TRUE) {
   if (!inherits(fitA, "cavi") || !inherits(fitB, "cavi")) {
@@ -3042,7 +3042,7 @@ partition_features_twofits_cavi <- function(fitA, fitB, X = NULL, delta = 0,
 #' @param verbose Logical.
 #'
 #' @return A list with \code{fit1}, \code{fit2}, and \code{seed2}.
-#' @export
+#' @noRd
 init_two_trajectories_cavi <- function(X,
                                        S = NULL,
                                        method = c("score", "mincor", "random_split"),
@@ -3271,7 +3271,7 @@ init_two_trajectories_cavi <- function(X,
 #'   \code{distance = 1 - S}, and for \code{similarity_metric = "smooth_fit"}
 #'   the raw directional score diagnostics used to build \code{S}, including
 #'   directional \code{lambda} and \code{sigma^2} estimates.
-#' @export
+#' @noRd
 init_m_trajectories_cavi <- function(X,
                                      S = NULL,
                                      M = 2L,
@@ -4133,7 +4133,7 @@ init_m_trajectories_cavi <- function(X,
 #'   state. If \code{drop_unused_ordering = TRUE}, it is the post-drop fitting
 #'   objective of the active model and is not intended for cross-\code{M}
 #'   comparison.
-#' @export
+#' @noRd
 soft_partition_cavi <- function(X,
                                 S = NULL,
                                 M = 2L,
@@ -4621,7 +4621,7 @@ soft_partition_cavi <- function(X,
 #'   \code{$assign}, \code{$M}, \code{$objective_history}, etc. The
 #'   \code{$objective_history} semantics match
 #'   \code{\link{soft_partition_cavi}}.
-#' @export
+#' @noRd
 soft_two_trajectory_cavi <- function(X,
                                      S = NULL,
                                      fit1_init = NULL,

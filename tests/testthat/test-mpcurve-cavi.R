@@ -114,11 +114,11 @@ test_that("fit_mpcurve and do_mpcurve expose a cavi-only public wrapper", {
 
   expect_true("greedy" %in% fit_formals)
   expect_true("S" %in% fit_formals)
+  expect_true("algorithm" %in% fit_formals)
   expect_true("position_prior" %in% fit_formals)
   expect_true("position_prior_init" %in% fit_formals)
   expect_true("partition_prior" %in% fit_formals)
   expect_true("partition_prior_init" %in% fit_formals)
-  expect_false("algorithm" %in% fit_formals)
   expect_false("relative_lambda" %in% fit_formals)
   expect_false("adaptive" %in% fit_formals)
   expect_false("sigma_update" %in% fit_formals)
@@ -421,7 +421,7 @@ test_that("legacy wrapper controls are rejected cleanly", {
     seed = 13
   )
 
-  expect_warning(
+  expect_s3_class(
     fit_mpcurve(
       sim$X,
       algorithm = "cavi",
@@ -430,7 +430,7 @@ test_that("legacy wrapper controls are rejected cleanly", {
       iter = 2,
       verbose = FALSE
     ),
-    "no longer part of the public fit_mpcurve"
+    "mpcurve"
   )
 
   expect_error(

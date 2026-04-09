@@ -45,7 +45,7 @@
 #' prior scaling. This is a pragmatic analogue of the EEI-style scaling.
 #'
 #' @return An object of class \code{csmooth_em}.
-#' @export
+#' @noRd
 as_csmooth_em <- function(
     params,
     gamma = NULL,
@@ -656,7 +656,7 @@ MSTEP_csmooth <- function(X, Gamma, params, Q_K, lambda_vec,
 #' @param verbose Logical; if TRUE, print a short progress line each iteration.
 #'
 #' @return Updated \code{csmooth_em} object.
-#' @export
+#' @noRd
 do_csmoothEM <- function(object,
                          data = NULL,
                          iter = 1,
@@ -1023,7 +1023,7 @@ do_csmoothEM <- function(object,
 #' @param verbose Logical.
 #'
 #' @return Updated \code{csmooth_em} object.
-#' @export
+#' @noRd
 do_csmoothEM_ml_collapsed <- function(object,
                                       data = NULL,
                                       iter = 1,
@@ -1342,7 +1342,7 @@ do_csmoothEM_ml_collapsed <- function(object,
 #'   \item \code{cluster_rank}: integer vector in \code{1..K} for each kept row.
 #' }
 #'
-#' @export
+#' @noRd
 make_init_csmooth <- function(
     X, ordering_vec, K,
     modelName = c("homoskedastic", "heteroskedastic"),
@@ -1577,7 +1577,7 @@ make_init_csmooth <- function(
 #'   \item \code{ordering}: ordering metadata including score \code{t} and method name
 #' }
 #'
-#' @export
+#' @noRd
 initialize_ordering_csmooth <- function(
     X, K,
     method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
@@ -1738,7 +1738,7 @@ initialize_ordering_csmooth <- function(
 #' }
 #'
 #' @return A \code{csmooth_em} object.
-#' @export
+#' @noRd
 initialize_csmoothEM <- function(
     X,
     method = c("tSNE", "PCA", "pcurve", "random", "fiedler", "multi_scale", "isomap"),
@@ -1999,7 +1999,7 @@ initialize_csmoothEM <- function(
 #' @param ... Passed to the underlying plotting functions.
 #'
 #' @return Invisibly returns \code{x}.
-#' @export
+#' @noRd
 plot.csmooth_em <- function(
     x,
     data = NULL,
@@ -2170,7 +2170,7 @@ plot.csmooth_em <- function(
 #' @param x A \code{csmooth_em} object.
 #' @param ... Unused.
 #'
-#' @export
+#' @noRd
 print.csmooth_em <- function(x, ...) {
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
@@ -2241,7 +2241,7 @@ print.csmooth_em <- function(x, ...) {
 #' @param ... Unused.
 #'
 #' @return A list with class \code{"summary.csmooth_em"}.
-#' @export
+#' @noRd
 summary.csmooth_em <- function(object, ...) {
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
@@ -2346,7 +2346,7 @@ summary.csmooth_em <- function(object, ...) {
 #' @param x A \code{summary.csmooth_em} object.
 #' @param ... Unused.
 #'
-#' @export
+#' @noRd
 print.summary.csmooth_em <- function(x, ...) {
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
@@ -2439,7 +2439,7 @@ print.summary.csmooth_em <- function(x, ...) {
 #'   }
 #'
 #' @seealso \code{\link{optimize_initial_csmoothEM}}, \code{\link{initialize_csmoothEM}}
-#' @export
+#' @noRd
 parallel_initial_csmoothEM <- function(
     X,
     methods = c("PCA", "tSNE", "random", "fiedler", "pcurve"),
@@ -2637,7 +2637,7 @@ parallel_initial_csmoothEM <- function(
 #'   }
 #'
 #' @seealso \code{\link{parallel_initial_csmoothEM}}, \code{\link{initialize_csmoothEM}}
-#' @export
+#' @noRd
 optimize_initial_csmoothEM <- function(
     X,
     methods = c("PCA", "tSNE", "random", "fiedler", "pcurve"),

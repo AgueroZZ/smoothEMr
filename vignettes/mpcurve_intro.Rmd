@@ -25,12 +25,10 @@ library(MPCurver)
 set.seed(42)
 ```
 
-`MPCurver` now uses `cavi` as the recommended default fitting backend.
-This vignette introduces the statistical model, the variational algorithm, and
-then walks through a larger but still easy spiral example.
-
-The legacy `csmooth_em` pipeline remains available only through lower-level
-compatibility functions and is no longer part of the public wrapper workflow.
+`MPCurver` now uses a CAVI backend through the public `fit_mpcurve()` and
+`do_mpcurve()` interface. This vignette introduces the statistical model, the
+variational algorithm, and then walks through a larger but still easy spiral
+example.
 
 ## 1  Statistical model
 
@@ -74,8 +72,8 @@ In the current `cavi` implementation:
 
 ## 2  Variational algorithm
 
-The `cavi()` routine performs coordinate-ascent variational inference on an
-explicit ELBO. Write
+The backend used by `fit_mpcurve()` performs coordinate-ascent variational
+inference on an explicit ELBO. Write
 \[
 r_{ik} := q_i(c_i = k),
 \qquad
@@ -115,8 +113,8 @@ r_{ik}
 \right].
 \]
 
-This is the quantity recorded in `elbo_trace`. The updates used in `cavi()`
-are obtained by maximizing this ELBO one block at a time.
+This is the quantity recorded in `elbo_trace`. The updates used by the public
+backend are obtained by maximizing this ELBO one block at a time.
 
 ### 2.1  Update for \(q(u_j)\)
 
@@ -147,7 +145,8 @@ S_j = A_j^{-1},
 m_j = S_j b_j.
 \]
 
-This is exactly the linear-algebra step implemented in `cavi()`.
+This is exactly the linear-algebra step implemented by the backend behind
+`fit_mpcurve()`.
 
 ### 2.2  Update for \(q(c_i)\)
 
@@ -257,7 +256,7 @@ plot(X, col = col_true, pch = 19, cex = 0.55,
      main = "Observed spiral, coloured by true pseudotime")
 ```
 
-## 4  Fit the default `cavi` backend
+## 4  Fit the default public interface
 
 ```{r fit-cavi}
 fit <- fit_mpcurve(
@@ -313,8 +312,7 @@ plot(X, col = col_fit, pch = 19, cex = 0.5,
 par(op)
 ```
 
-The built-in `mpcurve` plotting methods still work on top of the default `cavi`
-backend.
+The built-in `mpcurve` plotting methods work directly on the fitted object.
 
 ```{r plot-trace, fig.cap="CAVI trace plot from the fitted mpcurve object."}
 plot(fit, plot_type = "elbo")
@@ -326,7 +324,7 @@ plot(fit, plot_type = "mu")
 
 ## 7  Takeaway
 
-For this easier spiral regime, `cavi` is:
+For this easier spiral regime, the public CAVI workflow is:
 
 - fast enough to use as the default frontend algorithm,
 - explicit about its optimization target through the ELBO,

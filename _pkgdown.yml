@@ -3,6 +3,36 @@ url: https://aguerozz.github.io/MPCurver/
 template:
   bootstrap: 5
 
+home:
+  sidebar: false
+
+reference:
+  - title: Model fitting
+    contents:
+      - fit_mpcurve
+      - do_mpcurve
+      - fitted_prior
+  - title: Inspection and visualization
+    contents:
+      - print.mpcurve
+      - summary.mpcurve
+      - plot.mpcurve
+  - title: Ordering helpers
+    contents:
+      - PCA_ordering
+      - fiedler_ordering
+      - isomap_ordering
+      - pcurve_ordering
+      - tSNE_ordering
+  - title: Simulation helpers
+    contents:
+      - simulate_cavi_toy
+      - simulate_dual_trajectory
+      - simulate_intrinsic_trajectories
+      - simulate_spiral2d
+      - simulate_swiss_roll_1d_2d
+      - simulate_two_order_gp_dataset
+
 articles:
   - title: Getting started
     navbar: Getting started
@@ -13,13 +43,3 @@ articles:
     navbar: Case studies
     contents:
       - fitness
-  - title: Legacy
-    navbar: Legacy
-    contents:
-      - Intro
-  - title: Internal (development notes)
-    desc: >
-      Internal analysis notebooks and development diagnostics.
-      Not part of the public API documentation.
-    contents:
-      - starts_with("internal/")

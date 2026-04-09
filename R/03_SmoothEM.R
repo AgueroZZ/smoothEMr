@@ -457,7 +457,7 @@ MSTEP <- function(
 #'   \item \code{loglik_trace}: numeric vector.
 #' }
 #'
-#' @export
+#' @noRd
 EM_algorithm <- function(
     data, init_params,
     Q_prior   = NULL,
@@ -588,7 +588,7 @@ EM_algorithm <- function(
 #' @param meta Optional list of extra metadata to store.
 #'
 #' @return An object of class \code{smooth_em}.
-#' @export
+#' @noRd
 as_smooth_em <- function(
     fit,
     Q_prior = NULL,
@@ -687,7 +687,7 @@ as_smooth_em <- function(
 #' @param verbose Logical.
 #'
 #' @return Updated \code{smooth_em} object.
-#' @export
+#' @noRd
 do_smoothEM <- function(object,
                         data = NULL,
                         iter = 1,
@@ -839,6 +839,5 @@ do_smoothEM <- function(object,
   object$prior$lambda <- lambda
   object
 }
-
 
 

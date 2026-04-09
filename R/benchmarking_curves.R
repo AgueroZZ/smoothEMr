@@ -286,7 +286,7 @@ simulate_two_order_gp_dataset <- function(
 #' @return Invisibly returns a list with kept indices, bins, colors, optional bin centroids,
 #' and the plotted mean coordinates.
 #'
-#' @export
+#' @noRd
 plot_order_EM_overlay2D <- function(
     coords,
     order_vec,

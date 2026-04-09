@@ -40,11 +40,6 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Case studies</h6></li>
     <li><a class="dropdown-item" href="../articles/fitness.html">Analyzing the eLife Fitness Dataset with MPCurver</a></li>
-    <li><hr class="dropdown-divider"></li>
-    <li><h6 class="dropdown-header" data-toc-skip>Legacy</h6></li>
-    <li><a class="dropdown-item" href="../articles/Intro.html">Introduction to MPCurver</a></li>
-    <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul>
 </li>
       </ul>
@@ -52,6 +47,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/AgueroZZ/MPCurver/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -68,7 +64,7 @@
       <h1>Analyzing the eLife Fitness Dataset with MPCurver</h1>
             
       
-
+      <small class="dont-index">Source: <a href="https://github.com/AgueroZZ/MPCurver/blob/HEAD/vignettes/fitness.rmd" class="external-link"><code>vignettes/fitness.rmd</code></a></small>
       <div class="d-none name"><code>fitness.rmd</code></div>
     </div>
 
@@ -100,7 +96,7 @@ backend exposed by <code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"MPCurver"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">MPCurver</span><span class="op">)</span></span>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"devtools"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/load_all.html" class="external-link">load_all</a></span><span class="op">(</span><span class="st">"."</span>, quiet <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span>  <span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/devtools/man/load_all.html" class="external-link">load_all</a></span><span class="op">(</span><span class="st">"."</span>, quiet <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>  <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"Need either an installed MPCurver package or devtools::load_all()."</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
@@ -312,7 +308,7 @@ smooth trajectories.</li>
 inspect is the ELBO trace.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir</span>, plot_type <span class="op">=</span> <span class="st">"elbo"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/uni-convergence-1.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/uni-convergence-1.png" class="r-plt" alt="ELBO trace for the single-ordering CAVI fit, showing convergence over iterations." width="100%"></p>
 </div>
 <div class="section level3">
 <h3 id="inspect-a-few-fitted-trajectories">Inspect a few fitted trajectories<a class="anchor" aria-label="anchor" href="#inspect-a-few-fitted-trajectories"></a>
@@ -323,7 +319,7 @@ inspect is the ELBO trace.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir</span>, dims <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir</span>, dims <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir</span>, dims <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/uni-trajectories-1.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/uni-trajectories-1.png" class="r-plt" alt="Four panels showing fitted single-ordering CAVI trajectories for the first four environment dimensions." width="100%"></p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>The first fit already recovers coherent structure, but the
@@ -350,15 +346,17 @@ Larger values encourage smoother trajectories.</p>
 <span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, plot_type <span class="op">=</span> <span class="st">"elbo"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/uni-convergence-smooth-1.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/uni-convergence-smooth-1.png" class="r-plt" alt="ELBO trace for the smoothed single-ordering CAVI fit." width="100%"></p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_unidir_smooth</span></span>
-<span><span class="co">#&gt; MPCurve model fit</span></span>
-<span><span class="co">#&gt;   Algorithm : cavi</span></span>
-<span><span class="co">#&gt;   Model     : homoskedastic</span></span>
+<span><span class="co">#&gt; MPCurve fit</span></span>
+<span><span class="co">#&gt;   Backend        : cavi</span></span>
+<span><span class="co">#&gt;   Model          : homoskedastic</span></span>
 <span><span class="co">#&gt;   n / d / K : 421 / 45 / 50</span></span>
-<span><span class="co">#&gt;   Iterations: 349</span></span>
-<span><span class="co">#&gt;   ELBO (last)  : 11842.508096</span></span>
+<span><span class="co">#&gt;   Iterations     : 349</span></span>
+<span><span class="co">#&gt;   Position prior : adaptive</span></span>
+<span><span class="co">#&gt;   Converged      : yes</span></span>
+<span><span class="co">#&gt;   ELBO (last)   : 11842.508096</span></span>
 <span><span class="co">#&gt;   logLik (last): 14069.441003</span></span></code></pre></div>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
@@ -366,7 +364,7 @@ Larger values encourage smoother trajectories.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, dims <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, dims <span class="op">=</span> <span class="fl">7</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, dims <span class="op">=</span> <span class="fl">9</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/uni-trajectories-smooth-1.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/uni-trajectories-smooth-1.png" class="r-plt" alt="Four panels showing fitted trajectories under the smoothed single-ordering CAVI fit." width="100%"></p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>These curves are easier to read: the global ordering remains, but the
@@ -387,7 +385,7 @@ mutant ordering itself, or mainly changes the trajectory estimates.</p>
 <span>  ylab <span class="op">=</span> <span class="st">"Latent position (less regularized fit)"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, lty <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/compare-single-orderings-1.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/compare-single-orderings-1.png" class="r-plt" alt="Scatter plot comparing inferred mutant pseudotime between the default and smoothed single-ordering fits." width="100%"></p>
 <p>In this dataset the two fits stay close, which is reassuring:
 stronger regularization mostly improves interpretability rather than
 changing the basic ordering story.</p>
@@ -418,17 +416,19 @@ based on the ELBO.</p>
 <span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_partition</span></span>
-<span><span class="co">#&gt; MPCurve model fit (2-ordering partition)</span></span>
-<span><span class="co">#&gt;   Algorithm      : cavi</span></span>
-<span><span class="co">#&gt;   Greedy search  : backward (upper bound 4 -&gt; selected 2)</span></span>
-<span><span class="co">#&gt;   Intrinsic dim  : 2</span></span>
+<span><span class="co">#&gt; MPCurve partition fit</span></span>
+<span><span class="co">#&gt;   Backend        : cavi</span></span>
+<span><span class="co">#&gt;   Greedy search  : backward (upper bound 4 -&gt; selected 3)</span></span>
+<span><span class="co">#&gt;   Dim (req/act/view): 3 / 3 / 3</span></span>
 <span><span class="co">#&gt;   n / d / K      : 421 / 45 / 50</span></span>
-<span><span class="co">#&gt;   Partition      : A=35, B=10</span></span>
-<span><span class="co">#&gt;   Active         : A, B</span></span>
-<span><span class="co">#&gt;   Objective (last): 12507.438956</span></span>
+<span><span class="co">#&gt;   Partition      : A=35, B=1, C=9</span></span>
+<span><span class="co">#&gt;   Active         : A, B, C</span></span>
+<span><span class="co">#&gt;   Position prior : adaptive</span></span>
+<span><span class="co">#&gt;   Partition prior: adaptive</span></span>
+<span><span class="co">#&gt;   Objective (last): 12526.762490</span></span>
 <span><span class="co">#&gt;   Objective type : fixed-requested-M comparison</span></span>
 <span><span class="co">#&gt;   Converged      : TRUE</span></span>
-<span><span class="co">#&gt;   Phase-2 rel_delta   : 3.869e-06</span></span>
+<span><span class="co">#&gt;   Phase-2 rel_delta   : 9.154e-06</span></span>
 <span><span class="co">#&gt;   Small-step streak: 3</span></span>
 <span><span class="co">#&gt;   Reason         : Phase-2 rel_delta stayed below 1.0e-05 for 3 consecutive nonnegative steps.</span></span></code></pre></div>
 <div class="section level3">
@@ -437,10 +437,10 @@ based on the ELBO.</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">1</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/partition-plot-1.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/partition-plot-1.png" class="r-plt" alt="Two panels showing fitted partition-CAVI trajectories for environment dimensions 1 and 27." width="100%"></p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition</span>, dims <span class="op">=</span> <span class="fl">27</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/partition-plot-2.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/partition-plot-2.png" class="r-plt" alt="Two panels showing fitted partition-CAVI trajectories for environment dimensions 1 and 27." width="100%"></p>
 <div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -640,54 +640,54 @@ based on the ELBO.</p>
 <td align="left">A</td>
 </tr>
 <tr class="even">
-<td align="left">1% EtOH</td>
-<td align="left">carbon source</td>
-<td align="left">B</td>
-</tr>
-<tr class="odd">
-<td align="left">0.5 μg/ml Flu</td>
-<td align="left">drug / chemical</td>
-<td align="left">B</td>
-</tr>
-<tr class="even">
-<td align="left">Baffle, 0.4 μg/ml Ben</td>
-<td align="left">drug / chemical</td>
-<td align="left">B</td>
-</tr>
-<tr class="odd">
-<td align="left">Baffle, 2 μg/ml Ben</td>
-<td align="left">drug / chemical</td>
-<td align="left">B</td>
-</tr>
-<tr class="even">
-<td align="left">0.2 M KCl</td>
-<td align="left">salt stress</td>
-<td align="left">B</td>
-</tr>
-<tr class="odd">
-<td align="left">0.2 M NaCl</td>
-<td align="left">salt stress</td>
-<td align="left">B</td>
-</tr>
-<tr class="even">
-<td align="left">0.5 M KCl</td>
-<td align="left">salt stress</td>
-<td align="left">B</td>
-</tr>
-<tr class="odd">
-<td align="left">0.5 M NaCl</td>
-<td align="left">salt stress</td>
-<td align="left">B</td>
-</tr>
-<tr class="even">
-<td align="left">1 Day</td>
-<td align="left">time course</td>
-<td align="left">B</td>
-</tr>
-<tr class="odd">
 <td align="left">7 Day</td>
 <td align="left">time course</td>
 <td align="left">B</td>
+</tr>
+<tr class="odd">
+<td align="left">1% EtOH</td>
+<td align="left">carbon source</td>
+<td align="left">C</td>
+</tr>
+<tr class="even">
+<td align="left">0.5 μg/ml Flu</td>
+<td align="left">drug / chemical</td>
+<td align="left">C</td>
+</tr>
+<tr class="odd">
+<td align="left">Baffle, 0.4 μg/ml Ben</td>
+<td align="left">drug / chemical</td>
+<td align="left">C</td>
+</tr>
+<tr class="even">
+<td align="left">Baffle, 2 μg/ml Ben</td>
+<td align="left">drug / chemical</td>
+<td align="left">C</td>
+</tr>
+<tr class="odd">
+<td align="left">0.2 M KCl</td>
+<td align="left">salt stress</td>
+<td align="left">C</td>
+</tr>
+<tr class="even">
+<td align="left">0.2 M NaCl</td>
+<td align="left">salt stress</td>
+<td align="left">C</td>
+</tr>
+<tr class="odd">
+<td align="left">0.5 M KCl</td>
+<td align="left">salt stress</td>
+<td align="left">C</td>
+</tr>
+<tr class="even">
+<td align="left">0.5 M NaCl</td>
+<td align="left">salt stress</td>
+<td align="left">C</td>
+</tr>
+<tr class="odd">
+<td align="left">1 Day</td>
+<td align="left">time course</td>
+<td align="left">C</td>
 </tr>
 </tbody>
 </table>
@@ -713,16 +713,25 @@ based on the ELBO.</p>
 <th align="left"></th>
 <th align="right">A</th>
 <th align="right">B</th>
+<th align="right">C</th>
 </tr></thead>
 <tbody>
 <tr class="odd">
 <td align="left">A</td>
 <td align="right">1.000</td>
-<td align="right">0.206</td>
+<td align="right">-0.617</td>
+<td align="right">0.202</td>
 </tr>
 <tr class="even">
 <td align="left">B</td>
-<td align="right">0.206</td>
+<td align="right">-0.617</td>
+<td align="right">1.000</td>
+<td align="right">-0.617</td>
+</tr>
+<tr class="odd">
+<td align="left">C</td>
+<td align="right">0.202</td>
+<td align="right">-0.617</td>
 <td align="right">1.000</td>
 </tr>
 </tbody>
@@ -755,14 +764,14 @@ orderings.</p>
 <span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_known_sd</span>, plot_type <span class="op">=</span> <span class="st">"elbo"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/uni-known-sd-convergence-1.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/uni-known-sd-convergence-1.png" class="r-plt" alt="ELBO trace for the single-ordering CAVI fit with known measurement standard deviations." width="100%"></p>
 <div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_known_sd</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_known_sd</span>, dims <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_known_sd</span>, dims <span class="op">=</span> <span class="fl">31</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_known_sd</span>, dims <span class="op">=</span> <span class="fl">45</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/uni-known-sd-trajectories-1.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/uni-known-sd-trajectories-1.png" class="r-plt" alt="Four panels showing fitted trajectories for the single-ordering CAVI fit with known measurement SDs." width="100%"></p>
 <div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -789,13 +798,15 @@ improving.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">fit_partition_known_sd</span></span>
-<span><span class="co">#&gt; MPCurve model fit</span></span>
-<span><span class="co">#&gt;   Algorithm : cavi</span></span>
-<span><span class="co">#&gt;   Greedy    : forward (upper bound 4 -&gt; selected 1)</span></span>
-<span><span class="co">#&gt;   Model     : homoskedastic</span></span>
+<span><span class="co">#&gt; MPCurve fit</span></span>
+<span><span class="co">#&gt;   Backend        : cavi</span></span>
+<span><span class="co">#&gt;   Greedy search  : forward (upper bound 4 -&gt; selected 1)</span></span>
+<span><span class="co">#&gt;   Model          : homoskedastic</span></span>
 <span><span class="co">#&gt;   n / d / K : 421 / 45 / 50</span></span>
-<span><span class="co">#&gt;   Iterations: 235</span></span>
-<span><span class="co">#&gt;   ELBO (last)  : 13531.873663</span></span>
+<span><span class="co">#&gt;   Iterations     : 235</span></span>
+<span><span class="co">#&gt;   Position prior : adaptive</span></span>
+<span><span class="co">#&gt;   Converged      : yes</span></span>
+<span><span class="co">#&gt;   ELBO (last)   : 13531.873663</span></span>
 <span><span class="co">#&gt;   logLik (last): 16205.048990</span></span></code></pre></div>
 <p>It is also useful to check the same question from the other direction
 by starting from the upper bound and pruning redundant orderings.</p>
@@ -815,13 +826,15 @@ by starting from the upper bound and pruning redundant orderings.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">fit_partition_known_sd_backward</span></span>
-<span><span class="co">#&gt; MPCurve model fit</span></span>
-<span><span class="co">#&gt;   Algorithm : cavi</span></span>
-<span><span class="co">#&gt;   Greedy    : backward (upper bound 4 -&gt; selected 1)</span></span>
-<span><span class="co">#&gt;   Model     : homoskedastic</span></span>
+<span><span class="co">#&gt; MPCurve fit</span></span>
+<span><span class="co">#&gt;   Backend        : cavi</span></span>
+<span><span class="co">#&gt;   Greedy search  : backward (upper bound 4 -&gt; selected 1)</span></span>
+<span><span class="co">#&gt;   Model          : homoskedastic</span></span>
 <span><span class="co">#&gt;   n / d / K : 421 / 45 / 50</span></span>
-<span><span class="co">#&gt;   Iterations: 197</span></span>
-<span><span class="co">#&gt;   ELBO (last)  : 13591.042390</span></span>
+<span><span class="co">#&gt;   Iterations     : 197</span></span>
+<span><span class="co">#&gt;   Position prior : adaptive</span></span>
+<span><span class="co">#&gt;   Converged      : yes</span></span>
+<span><span class="co">#&gt;   ELBO (last)   : 13591.042390</span></span>
 <span><span class="co">#&gt;   logLik (last): 16229.890897</span></span></code></pre></div>
 <p>When both forward and backward selection collapse back to a single
 ordering, that is strong evidence that the earlier higher-dimensional
@@ -845,7 +858,7 @@ genuinely distinct latent systems.</p>
 <span>  ylab <span class="op">=</span> <span class="st">"Latent position (backward search)"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, lty <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/compare-known-sd-orderings-1.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/compare-known-sd-orderings-1.png" class="r-plt" alt="Scatter plot comparing inferred pseudotime between forward and backward greedy search with known measurement SDs." width="100%"></p>
 <p>Though both methods find a single ordering.</p>
 <div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
@@ -853,7 +866,7 @@ genuinely distinct latent systems.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition_known_sd</span>, dims <span class="op">=</span> <span class="fl">30</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition_known_sd_backward</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_partition_known_sd_backward</span>, dims <span class="op">=</span> <span class="fl">30</span><span class="op">)</span></span></code></pre></div>
-<p><img src="fitness_files/figure-html/compare-known-sd-trajectories-1.png" class="r-plt" width="100%"></p>
+<p><img src="fitness_files/figure-html/compare-known-sd-trajectories-1.png" class="r-plt" alt="Four panels comparing fitted trajectories from forward and backward greedy search with known measurement SDs." width="100%"></p>
 <div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>

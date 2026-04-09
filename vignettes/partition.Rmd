@@ -57,7 +57,7 @@ This generalises the `intrinsic_dim` concept from `vignette("mpcurve_intro")`:
 a model with $M$ orderings has **intrinsic dimension $M$**.
 The standard single-ordering fit is the special case $M = 1$.
 
-## The soft partition algorithm
+## The partition-CAVI algorithm
 
 `MPCurver` uses a soft partition approach: rather than assigning each feature
 to exactly one ordering, it maintains probabilistic weights $w_{jm} \in [0,1]$
@@ -98,9 +98,9 @@ $$
 If `assignment_prior = "dirichlet"`, the score is augmented by the current
 variational expectation of the ordering-usage weights:
 $$
-w_{jm} \;\propto\; \exp\!\Bigl(
+w_{jm} \;\propto\; \exp\!\left(
 \bigl[\ell_{jm}^{\mathrm{like}} + \mathbb{E}_q \log \omega_m\bigr] / T
-\Bigr),
+\right),
 $$
 with
 \[
@@ -263,9 +263,12 @@ plot(fit_partition, dims = 1)
 ### Partition accuracy
 
 ```{r soft-accuracy}
-soft_acc <- evaluate_partition(
-  list(assign = fit_partition$partition$assign), truth
-)$accuracy
+pred_assign <- as.character(fit_partition$partition$assign)
+truth_assign <- as.character(truth)
+soft_acc <- max(
+  mean(pred_assign == truth_assign),
+  mean(pred_assign != truth_assign)
+)
 cat("Soft partition accuracy:", round(soft_acc, 4), "\n")
 ```
 
@@ -320,7 +323,7 @@ fit3 <- fit_mpcurve(X, intrinsic_dim = 3,
 
 ## Greedy dimension selection
 
-Dimension selection is now unified under the soft-CAVI framework through
+Dimension selection is now unified under the partition-CAVI workflow through
 `fit_mpcurve(greedy = ...)`.
 
 - `greedy = "forward"` treats `intrinsic_dim` as an upper bound and compares

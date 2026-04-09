@@ -11,8 +11,8 @@
 <script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Fit and Explore MPCurve Trajectory Models in R">
-<meta name="description" content="Implements the MPCurve statistical model for trajectory and pseudotime inference via Gaussian mixture models with Gaussian Markov random field priors on smooth latent trajectories. Provides a mean-field coordinate-ascent variational backend (cavi) that is the recommended public workflow. Legacy MAP/EM backends (csmooth_em and smooth_em) are retained only as lower-level compatibility helpers. Also includes a unified fit_mpcurve() interface, dual-ordering partition tools, multiple initialization methods, and theory-facing documentation for the CAVI path.">
-<meta property="og:description" content="Implements the MPCurve statistical model for trajectory and pseudotime inference via Gaussian mixture models with Gaussian Markov random field priors on smooth latent trajectories. Provides a mean-field coordinate-ascent variational backend (cavi) that is the recommended public workflow. Legacy MAP/EM backends (csmooth_em and smooth_em) are retained only as lower-level compatibility helpers. Also includes a unified fit_mpcurve() interface, dual-ordering partition tools, multiple initialization methods, and theory-facing documentation for the CAVI path.">
+<meta name="description" content="Implements the MPCurve statistical model for trajectory and pseudotime inference via Gaussian mixture models with Gaussian Markov random field priors on smooth latent trajectories. Provides a mean-field coordinate-ascent variational backend (cavi) that is the recommended public workflow. Older MAP/EM backends (csmooth_em and smooth_em) remain in the codebase but are not part of the public API or public website. Also includes a unified fit_mpcurve() interface, multi-ordering partition tools via intrinsic_dim, and multiple initialization methods for the CAVI path.">
+<meta property="og:description" content="Implements the MPCurve statistical model for trajectory and pseudotime inference via Gaussian mixture models with Gaussian Markov random field priors on smooth latent trajectories. Provides a mean-field coordinate-ascent variational backend (cavi) that is the recommended public workflow. Older MAP/EM backends (csmooth_em and smooth_em) remain in the codebase but are not part of the public API or public website. Also includes a unified fit_mpcurve() interface, multi-ordering partition tools via intrinsic_dim, and multiple initialization methods for the CAVI path.">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -42,11 +42,6 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Case studies</h6></li>
     <li><a class="dropdown-item" href="articles/fitness.html">Analyzing the eLife Fitness Dataset with MPCurver</a></li>
-    <li><hr class="dropdown-divider"></li>
-    <li><h6 class="dropdown-header" data-toc-skip>Legacy</h6></li>
-    <li><a class="dropdown-item" href="articles/Intro.html">Introduction to MPCurver</a></li>
-    <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="articles/index.html">More articles...</a></li>
   </ul>
 </li>
       </ul>
@@ -54,6 +49,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/AgueroZZ/MPCurver/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -67,20 +63,18 @@
 <!-- badges: start -->
 <!-- badges: end -->
 <p><code>MPCurver</code> fits smooth latent orderings with Gaussian-mixture / GMRF models.</p>
-<p>The recommended workflow uses the <strong><code>cavi</code> variational backend</strong> through <code><a href="reference/fit_mpcurve.html">fit_mpcurve()</a></code>. The older <code>csmooth_em</code> and <code>smooth_em</code> algorithms are kept only as lower-level compatibility helpers and are no longer part of the main package workflow.</p>
+<p>The public workflow is <strong><code>mpcurve</code>-first and CAVI-first</strong>: use <code><a href="reference/fit_mpcurve.html">fit_mpcurve()</a></code> to fit a model, <code><a href="reference/do_mpcurve.html">do_mpcurve()</a></code> to continue a fitted model, and the usual <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code>, <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, and <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> methods to inspect results.</p>
 <div class="section level2">
 <h2 id="documentation">Documentation<a class="anchor" aria-label="anchor" href="#documentation"></a>
 </h2>
-<p>The package documentation is organized around the recommended <code>cavi</code> workflow, with legacy material intentionally pushed out of the main entry points.</p>
+<p>The package documentation is organized around the public <code>mpcurve</code> workflow.</p>
 <ul>
 <li>
 <code>vignettes/mpcurve_intro.Rmd</code>: current single-ordering introduction.</li>
 <li>
-<code>vignettes/partition.Rmd</code>: current dual-ordering / feature-partition tools.</li>
+<code>vignettes/partition.Rmd</code>: current multi-ordering / feature-partition tools.</li>
 <li>
-<code>important_derivations/cavi_math_details.Rmd</code>: repo-level derivation of the single-ordering CAVI updates.</li>
-<li>
-<code>important_derivations/cavi_vs_csmooth_math.Rmd</code>: repo-level comparison between <code>cavi</code> and legacy <code>csmooth_em</code>.</li>
+<code>vignettes/fitness.rmd</code>: applied case study using the public interface.</li>
 </ul>
 </div>
 <div class="section level2">
@@ -88,7 +82,7 @@
 </h2>
 <p>You can install the development version of <code>MPCurver</code> like so:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"AgueroZZ/MPCurver"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/pak/man/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"AgueroZZ/MPCurver"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
@@ -102,7 +96,7 @@
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">obs</span>, pch <span class="op">=</span> <span class="fl">16</span>, cex <span class="op">=</span> <span class="fl">0.35</span>, col <span class="op">=</span> <span class="st">"grey80"</span>,</span>
 <span>     xlab <span class="op">=</span> <span class="st">"x1"</span>, ylab <span class="op">=</span> <span class="st">"x2"</span>, main <span class="op">=</span> <span class="st">"Noisy 2D spiral"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="reference/figures/README-unnamed-chunk-2-1.png" width="100%"></p>
-<p>Now we fit the model with <code><a href="reference/fit_mpcurve.html">fit_mpcurve()</a></code>. The public wrapper is CAVI-first, so there is no longer an <code>algorithm</code> switch here.</p>
+<p>Now we fit the model with <code><a href="reference/fit_mpcurve.html">fit_mpcurve()</a></code>. The public wrapper uses the CAVI backend and returns an <code>mpcurve</code> object.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
 <span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/fit_mpcurve.html">fit_mpcurve</a></span><span class="op">(</span></span>
@@ -135,36 +129,11 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">fits</span>, <span class="st">"summary"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; NULL</span></span></code></pre></div>
-<p><code><a href="reference/fit_mpcurve.html">fit_mpcurve()</a></code> returns either a single <code>mpcurve</code> fit or a list of fits. Each fit keeps the unified <code>params</code>, <code>gamma</code>, <code>elbo_trace</code>, <code>loglik_trace</code>, and the underlying raw fit in <code>$fit</code>.</p>
-<p>Legacy <code>csmooth_em</code> and <code>smooth_em</code> code paths are still present as lower-level compatibility functions, but they are no longer part of the public <code><a href="reference/fit_mpcurve.html">fit_mpcurve()</a></code> wrapper.</p>
-<p>For dual-ordering analyses, the recommended public entry point is <code>fit_mpcurve(..., intrinsic_dim = 2)</code> or more generally <code>fit_mpcurve(..., intrinsic_dim = M)</code>. The lower-level <code><a href="reference/soft_two_trajectory_cavi.html">soft_two_trajectory_cavi()</a></code> helper is still available for explicit two-fit initialization workflows.</p>
+<p><code><a href="reference/fit_mpcurve.html">fit_mpcurve()</a></code> returns either a single <code>mpcurve</code> fit or a list of fits. Each fit keeps the unified <code>params</code>, <code>gamma</code>, <code>elbo_trace</code>, <code>loglik_trace</code>, and the underlying backend fit in <code>$fit</code>.</p>
+<p>For multi-ordering analyses, use <code>fit_mpcurve(..., intrinsic_dim = 2)</code> or more generally <code>fit_mpcurve(..., intrinsic_dim = M)</code>. The same <code>mpcurve</code> methods continue to work for both single-ordering and partition fits.</p>
 </div>
 </div>
-  </main><aside class="col-md-3"><div class="license">
-<h2 data-toc-skip>License</h2>
-<ul class="list-unstyled">
-<li>GPL (&gt;= 3)</li>
-</ul>
-</div>
-
-
-<div class="citation">
-<h2 data-toc-skip>Citation</h2>
-<ul class="list-unstyled">
-<li><a href="authors.html#citation">Citing MPCurver</a></li>
-</ul>
-</div>
-
-<div class="developers">
-<h2 data-toc-skip>Developers</h2>
-<ul class="list-unstyled">
-<li>Ziang Zhang <br><small class="roles"> Author, maintainer </small>   </li>
-</ul>
-</div>
-
-
-
-  </aside>
+  </main><aside class="col-md-3"></aside>
 </div>
 
 
