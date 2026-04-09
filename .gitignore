@@ -27,6 +27,8 @@ PACKAGE_OVERVIEW_FOR_AGENTS.md
 
 # Internal experiments and diagnostics
 vignettes/internal/
+vignettes/*_files/
+plan/
 scripts/
 output/
 tmp/

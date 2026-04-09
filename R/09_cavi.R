@@ -89,6 +89,164 @@
   if (length(rng) != 2L || !all(is.finite(rng))) c(NA_real_, NA_real_) else rng
 }
 
+.warn_pi_init_deprecated <- local({
+  warned <- FALSE
+  function(caller = NULL) {
+    if (isTRUE(warned)) return(invisible(NULL))
+    warned <<- TRUE
+    prefix <- if (is.null(caller) || !nzchar(caller)) "" else paste0(caller, ": ")
+    warning(
+      prefix,
+      "`pi_init` is deprecated; use `position_prior_init` instead.",
+      call. = FALSE
+    )
+    invisible(NULL)
+  }
+})
+
+.cavi_validate_position_prior <- function(position_prior = c("adaptive", "fixed"),
+                                          position_prior_init = NULL,
+                                          pi_init = NULL,
+                                          K,
+                                          caller = "cavi()") {
+  position_prior <- match.arg(position_prior)
+
+  if (!is.null(pi_init)) {
+    .warn_pi_init_deprecated(caller = caller)
+    if (is.null(position_prior_init)) {
+      position_prior_init <- pi_init
+    } else if (!isTRUE(all.equal(
+      as.numeric(position_prior_init),
+      as.numeric(pi_init),
+      tolerance = 0,
+      check.attributes = FALSE
+    ))) {
+      stop(
+        caller,
+        ": `position_prior_init` and deprecated `pi_init` disagree; supply only `position_prior_init`.",
+        call. = FALSE
+      )
+    }
+  }
+
+  if (is.null(position_prior_init)) {
+    return(list(
+      position_prior = position_prior,
+      position_prior_init = NULL
+    ))
+  }
+
+  init <- as.numeric(position_prior_init)
+  if (length(init) != K || any(!is.finite(init)) || any(init < 0) || sum(init) <= 0) {
+    stop(
+      caller,
+      ": `position_prior_init` must be a nonnegative vector of length K with positive sum.",
+      call. = FALSE
+    )
+  }
+
+  list(
+    position_prior = position_prior,
+    position_prior_init = init / sum(init)
+  )
+}
+
+.cavi_initialize_position_prior <- function(R,
+                                            K,
+                                            position_prior = c("adaptive", "fixed"),
+                                            position_prior_init = NULL) {
+  position_prior <- match.arg(position_prior)
+
+  if (!is.null(position_prior_init)) {
+    pi_vec <- as.numeric(position_prior_init)
+  } else if (identical(position_prior, "fixed")) {
+    pi_vec <- rep(1 / K, K)
+  } else {
+    pi_vec <- pmax(colMeans(R), .Machine$double.eps)
+  }
+
+  pi_vec <- pmax(as.numeric(pi_vec), .Machine$double.eps)
+  pi_vec / sum(pi_vec)
+}
+
+.cavi_stop_precision_failure <- function(iteration,
+                                         feature_index,
+                                         lambda_j,
+                                         diag_term,
+                                         A_j,
+                                         R,
+                                         rw_q,
+                                         ridge,
+                                         sigma2_j = NULL,
+                                         measurement_sd = NULL,
+                                         original_error = NULL) {
+  mass_tol <- 1e-12
+  diag_tol <- 1e-15
+  col_mass <- colSums(R)
+  eig_min <- tryCatch(
+    min(eigen(A_j, symmetric = TRUE, only.values = TRUE)$values),
+    error = function(e) NA_real_
+  )
+
+  sigma_clause <- if (is.null(sigma2_j)) {
+    ""
+  } else {
+    sprintf(", sigma2_j=%.3g", sigma2_j)
+  }
+
+  sd_clause <- if (is.null(measurement_sd)) {
+    ""
+  } else {
+    rng_sd <- .cavi_measurement_sd_range(measurement_sd)
+    sprintf(", known_sd range=[%.3g, %.3g]", rng_sd[1], rng_sd[2])
+  }
+
+  detail_clause <- if (is.null(original_error)) {
+    ""
+  } else {
+    sprintf(" Original chol error: %s.", conditionMessage(original_error))
+  }
+
+  ridge_suggestion <- if (ridge <= 0) {
+    " Try a small positive ridge (for example ridge = 1e-6), a smaller K, or less extreme S."
+  } else {
+    " Try a smaller K or less extreme S."
+  }
+
+  stop(
+    sprintf(
+      paste0(
+        "cavi() posterior precision update failed at iteration %d for feature %d ",
+        "because A_j was not numerically positive definite ",
+        "(lambda_j=%.3g, diag_term range=[%.3g, %.3g], approx min eigen=%.3g, ",
+        "effective components=%d/%d with column mass > %.0e, ",
+        "effective diagonal entries=%d/%d with diag_term > %.0e, rw_q=%d, ridge=%.3g%s%s). ",
+        "This usually happens when responsibilities collapse onto very few components ",
+        "while the intrinsic RW prior is nearly singular.%s%s"
+      ),
+      iteration,
+      feature_index,
+      lambda_j,
+      min(diag_term),
+      max(diag_term),
+      eig_min,
+      sum(is.finite(col_mass) & col_mass > mass_tol),
+      length(col_mass),
+      mass_tol,
+      sum(is.finite(diag_term) & diag_term > diag_tol),
+      length(diag_term),
+      diag_tol,
+      rw_q,
+      ridge,
+      sigma_clause,
+      sd_clause,
+      detail_clause,
+      ridge_suggestion
+    ),
+    call. = FALSE
+  )
+}
+
 .cavi_resolve_measurement_sd <- function(S,
                                          X,
                                          caller = "cavi()",
@@ -247,7 +405,15 @@ simulate_cavi_toy <- function(n = 150,
 #' @param K Number of components. If NULL, defaults to \code{max(2, min(50, floor(n/5)))}.
 #' @param method Initialization ordering method when \code{responsibilities_init} is NULL.
 #' @param responsibilities_init Optional initial responsibility matrix (\eqn{n \times K}).
-#' @param pi_init Optional initial mixture proportions.
+#' @param position_prior Either \code{"adaptive"} or \code{"fixed"} for the
+#'   cell-position prior over latent components. \code{"adaptive"} updates
+#'   \code{pi} by empirical Bayes from the current responsibilities, while
+#'   \code{"fixed"} keeps it constant throughout fitting.
+#' @param position_prior_init Optional length-\code{K} initial/fixed prior
+#'   vector for latent component positions. When omitted and
+#'   \code{position_prior = "fixed"}, a uniform prior is used. Deprecated
+#'   alias: \code{pi_init}.
+#' @param pi_init Deprecated alias for \code{position_prior_init}.
 #' @param sigma2_init Optional initial feature-specific variances.
 #' @param S Optional known measurement standard deviations. If \code{NULL},
 #'   the current feature-specific variance inference is used. If a length-\code{d}
@@ -287,6 +453,8 @@ cavi <- function(X,
                  K = NULL,
                  method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
                  responsibilities_init = NULL,
+                 position_prior = c("adaptive", "fixed"),
+                 position_prior_init = NULL,
                  pi_init = NULL,
                  sigma2_init = NULL,
                  S = NULL,
@@ -305,6 +473,7 @@ cavi <- function(X,
                  verbose = FALSE) {
   method <- match.arg(method)
   discretization <- match.arg(discretization)
+  position_prior <- match.arg(position_prior)
 
   X <- as.matrix(X)
   n <- nrow(X)
@@ -394,16 +563,19 @@ cavi <- function(X,
     }
   }
 
-  pi_vec <- if (!is.null(pi_init)) {
-    tmp <- as.numeric(pi_init)
-    if (length(tmp) != K || any(tmp < 0) || sum(tmp) <= 0) {
-      stop("pi_init must be a nonnegative vector of length K with positive sum.")
-    }
-    tmp / sum(tmp)
-  } else {
-    pmax(colMeans(R), .Machine$double.eps)
-  }
-  pi_vec <- pi_vec / sum(pi_vec)
+  position_prior_ctl <- .cavi_validate_position_prior(
+    position_prior = position_prior,
+    position_prior_init = position_prior_init,
+    pi_init = pi_init,
+    K = K,
+    caller = "cavi()"
+  )
+  pi_vec <- .cavi_initialize_position_prior(
+    R = R,
+    K = K,
+    position_prior = position_prior_ctl$position_prior,
+    position_prior_init = position_prior_ctl$position_prior_init
+  )
 
   noise_info <- .cavi_resolve_measurement_sd(S = S, X = X, caller = "cavi()")
   if (!is.null(noise_info$measurement_sd) && !is.null(sigma2_init)) {
@@ -462,7 +634,7 @@ cavi <- function(X,
     rep(1, d)
   }
 
-  .update_q_u <- function(R, sigma2, lambda_vec) {
+  .update_q_u <- function(R, sigma2, lambda_vec, iteration = 0L) {
     Nk <- colSums(R)
     Nk[Nk < 1e-8] <- 1e-8
     GX <- t(X) %*% R
@@ -474,9 +646,26 @@ cavi <- function(X,
     eq_quad <- numeric(d)
 
     for (j in seq_len(d)) {
-      A_j <- diag(as.numeric(Nk / sigma2[j]), K, K) + lambda_vec[j] * Q_K
+      diag_j <- as.numeric(Nk / sigma2[j])
+      A_j <- diag(diag_j, K, K) + lambda_vec[j] * Q_K
       A_j <- 0.5 * (A_j + t(A_j))
-      L_j <- chol(A_j)
+      L_j <- tryCatch(
+        chol(A_j),
+        error = function(e) {
+          .cavi_stop_precision_failure(
+            iteration = iteration,
+            feature_index = j,
+            lambda_j = lambda_vec[j],
+            diag_term = diag_j,
+            A_j = A_j,
+            R = R,
+            rw_q = rw_q,
+            ridge = ridge,
+            sigma2_j = sigma2[j],
+            original_error = e
+          )
+        }
+      )
       S_j <- chol2inv(L_j)
       rhs_j <- as.numeric(GX[j, ]) / sigma2[j]
       y_j <- forwardsolve(t(L_j), rhs_j)
@@ -498,7 +687,7 @@ cavi <- function(X,
     )
   }
 
-  .update_q_u_known <- function(R, lambda_vec, var_mat) {
+  .update_q_u_known <- function(R, lambda_vec, var_mat, iteration = 0L) {
     m_mat <- matrix(0, nrow = d, ncol = K)
     sdiag_mat <- matrix(0, nrow = d, ncol = K)
     S_list <- vector("list", d)
@@ -510,7 +699,23 @@ cavi <- function(X,
       diag_j <- as.numeric(crossprod(inv_vj, R))
       A_j <- diag(diag_j, K, K) + lambda_vec[j] * Q_K
       A_j <- 0.5 * (A_j + t(A_j))
-      L_j <- chol(A_j)
+      L_j <- tryCatch(
+        chol(A_j),
+        error = function(e) {
+          .cavi_stop_precision_failure(
+            iteration = iteration,
+            feature_index = j,
+            lambda_j = lambda_vec[j],
+            diag_term = diag_j,
+            A_j = A_j,
+            R = R,
+            rw_q = rw_q,
+            ridge = ridge,
+            measurement_sd = noise_info$measurement_sd,
+            original_error = e
+          )
+        }
+      )
       S_j <- chol2inv(L_j)
       rhs_j <- as.numeric(crossprod(inv_vj * X[, j], R))
       y_j <- forwardsolve(t(L_j), rhs_j)
@@ -701,7 +906,7 @@ cavi <- function(X,
   converged <- FALSE
 
   if (is.null(noise_info$measurement_sd)) {
-    q_u <- .update_q_u(R, sigma2, lambda_vec)
+    q_u <- .update_q_u(R, sigma2, lambda_vec, iteration = 0L)
     elbo_trace <- .compute_elbo(R, pi_vec, sigma2, lambda_vec, q_u)
     loglik_trace <- .compute_observed_loglik(q_u, pi_vec, sigma2)
     sigma2_trace <- list(sigma2)
@@ -709,11 +914,13 @@ cavi <- function(X,
     if (max_iter > 0L) {
       for (iter in seq_len(max_iter)) {
         R <- .update_r(q_u, pi_vec, sigma2)
-        pi_vec <- pmax(colMeans(R), .Machine$double.eps)
-        pi_vec <- pi_vec / sum(pi_vec)
+        if (identical(position_prior_ctl$position_prior, "adaptive")) {
+          pi_vec <- pmax(colMeans(R), .Machine$double.eps)
+          pi_vec <- pi_vec / sum(pi_vec)
+        }
         sigma2 <- .update_sigma2(R, q_u)
         if (!fix_lambda) lambda_vec <- .update_lambda(q_u)
-        q_u <- .update_q_u(R, sigma2, lambda_vec)
+        q_u <- .update_q_u(R, sigma2, lambda_vec, iteration = iter)
 
         elbo_new <- .compute_elbo(R, pi_vec, sigma2, lambda_vec, q_u)
         loglik_new <- .compute_observed_loglik(q_u, pi_vec, sigma2)
@@ -748,7 +955,7 @@ cavi <- function(X,
     }
   } else {
     var_mat <- noise_info$var_mat
-    q_u <- .update_q_u_known(R, lambda_vec, var_mat)
+    q_u <- .update_q_u_known(R, lambda_vec, var_mat, iteration = 0L)
     elbo_trace <- .compute_elbo_known(R, pi_vec, lambda_vec, q_u, var_mat)
     loglik_trace <- .compute_observed_loglik_known(q_u, pi_vec, var_mat)
     sigma2_trace <- list()
@@ -756,10 +963,12 @@ cavi <- function(X,
     if (max_iter > 0L) {
       for (iter in seq_len(max_iter)) {
         R <- .update_r_known(q_u, pi_vec, var_mat)
-        pi_vec <- pmax(colMeans(R), .Machine$double.eps)
-        pi_vec <- pi_vec / sum(pi_vec)
+        if (identical(position_prior_ctl$position_prior, "adaptive")) {
+          pi_vec <- pmax(colMeans(R), .Machine$double.eps)
+          pi_vec <- pi_vec / sum(pi_vec)
+        }
         if (!fix_lambda) lambda_vec <- .update_lambda(q_u)
-        q_u <- .update_q_u_known(R, lambda_vec, var_mat)
+        q_u <- .update_q_u_known(R, lambda_vec, var_mat, iteration = iter)
 
         elbo_new <- .compute_elbo_known(R, pi_vec, lambda_vec, q_u, var_mat)
         loglik_new <- .compute_observed_loglik_known(q_u, pi_vec, var_mat)
@@ -800,7 +1009,7 @@ cavi <- function(X,
     sigma2 = sigma2
   )
 
-  structure(
+  out <- structure(
     list(
       params = params,
       gamma = R,
@@ -826,6 +1035,7 @@ cavi <- function(X,
         modelName = "homoskedastic",
         noise_model = noise_info$noise_model,
         adaptive = if (fix_lambda) "fixed_lambda" else "variational",
+        position_prior = position_prior_ctl$position_prior,
         method = method,
         discretization = discretization,
         fix_lambda = fix_lambda,
@@ -852,6 +1062,8 @@ cavi <- function(X,
     ),
     class = "cavi"
   )
+  out$priors <- .mpcurve_priors_from_cavi_fit(out)
+  out
 }
 
 
@@ -954,7 +1166,8 @@ do_cavi <- function(object,
       object$gamma,
       cavi_skip_raw_preinit = TRUE
     ),
-    pi_init = object$params$pi,
+    position_prior = (object$control %||% list())$position_prior %||% "adaptive",
+    position_prior_init = object$params$pi,
     sigma2_init = object$params$sigma2,
     S = S_use,
     lambda_init = lambda_init_use,
@@ -1003,6 +1216,8 @@ do_cavi <- function(object,
   }
 
   updated$iter <- length(updated$elbo_trace) - 1L
+  updated$priors <- NULL
+  updated$priors <- .mpcurve_priors_from_cavi_fit(updated)
   updated
 }
 
@@ -1012,9 +1227,11 @@ print.cavi <- function(x, ...) {
   last_elbo <- if (length(x$elbo_trace)) tail(x$elbo_trace, 1L) else NA_real_
   last_ll <- if (length(x$loglik_trace)) tail(x$loglik_trace, 1L) else NA_real_
   noise_model <- x$control$noise_model %||% "estimated_feature_variance"
+  position_prior <- x$control$position_prior %||% "adaptive"
   cat("cavi fit\n")
   cat(sprintf("  n=%d, d=%d, K=%d\n", nrow(x$data), ncol(x$data), length(x$params$pi)))
   cat(sprintf("  iter=%d, converged=%s\n", x$iter, if (isTRUE(x$converged)) "yes" else "no"))
+  cat(sprintf("  position prior=%s\n", position_prior))
   cat(sprintf("  ELBO(last)=%.6f\n", last_elbo))
   if (is.finite(last_ll)) cat(sprintf("  logLik(last)=%.6f\n", last_ll))
   if (identical(noise_model, "estimated_feature_variance")) {
@@ -1086,6 +1303,7 @@ summary.cavi <- function(object, ...) {
     init_method = object$control$method %||% NA_character_,
     discretization = object$control$discretization %||% NA_character_,
     adaptive = object$control$adaptive %||% "variational",
+    position_prior = object$control$position_prior %||% "adaptive",
     elbo_trace = elbo_trace,
     loglik_trace = loglik_trace,
     elbo_last = elbo_last,
@@ -1133,6 +1351,8 @@ print.summary.cavi <- function(x, ...) {
               ifelse(is.na(x$init_method), "?", x$init_method),
               ifelse(is.na(x$discretization), "?", x$discretization),
               ifelse(is.na(x$adaptive), "?", x$adaptive)))
+  cat(sprintf("  position prior = %s\n",
+              ifelse(is.null(x$position_prior) || is.na(x$position_prior), "?", x$position_prior)))
   cat(sprintf("  iter = %s, converged = %s\n",
               ifelse(is.na(x$iter), "?", x$iter),
               if (isTRUE(x$converged)) "yes" else "no"))

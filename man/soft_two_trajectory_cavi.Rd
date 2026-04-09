@@ -27,8 +27,12 @@ soft_two_trajectory_cavi(
   lambda_max = 1e+10,
   sigma_min = 1e-10,
   sigma_max = 1e+10,
-  assignment_prior = c("uniform", "dirichlet"),
-  ordering_alpha = 0.5,
+  position_prior = c("adaptive", "fixed"),
+  position_prior_init = NULL,
+  partition_prior = c("adaptive", "fixed"),
+  partition_prior_init = NULL,
+  assignment_prior = NULL,
+  ordering_alpha = NULL,
   hard_assign_final = FALSE,
   freeze_unused_ordering = TRUE,
   freeze_unused_ordering_threshold = 0.5,
@@ -81,10 +85,26 @@ single-ordering \code{cavi} updates.}
 \item{sigma_min, sigma_max}{Bounds for the feature-specific noise variance
 \code{sigma2_j}. Forwarded to internal \code{cavi()} calls.}
 
-\item{assignment_prior}{Either \code{"uniform"} or \code{"dirichlet"}.}
+\item{position_prior}{Either \code{"adaptive"} or \code{"fixed"} for the
+within-ordering component prior \code{pi}.}
 
-\item{ordering_alpha}{Positive scalar used when
-\code{assignment_prior = "dirichlet"}.}
+\item{position_prior_init}{Optional length-\code{K} initial/fixed vector for
+the within-ordering component prior \code{pi}. When
+\code{position_prior = "fixed"} and this is \code{NULL}, a uniform prior
+over the \code{K} positions is used.}
+
+\item{partition_prior}{Either \code{"adaptive"} or \code{"fixed"} for the
+ordering-usage prior \code{omega}.}
+
+\item{partition_prior_init}{Optional length-2 initial/fixed vector for the
+ordering prior \code{omega}. Used only when
+\code{partition_prior = "fixed"}.}
+
+\item{assignment_prior}{Deprecated compatibility argument for the old
+partition-prior API.}
+
+\item{ordering_alpha}{Deprecated compatibility argument used only for the
+legacy \code{assignment_prior = "dirichlet"} path.}
 
 \item{hard_assign_final}{Logical.}
 

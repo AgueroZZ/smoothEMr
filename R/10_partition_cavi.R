@@ -1015,7 +1015,7 @@
       X = X,
       K = length(subset_res$fit$params$pi),
       responsibilities_init = subset_res$fit$gamma,
-      pi_init = colMeans(subset_res$fit$gamma),
+      position_prior_init = colMeans(subset_res$fit$gamma),
       S = S,
       rw_q = rw_q,
       ridge = ridge,
@@ -1097,16 +1097,191 @@
   -as.numeric(d) * log(as.numeric(M))
 }
 
-.validate_partition_assignment_controls <- function(assignment_prior = c("uniform", "dirichlet"),
-                                                    ordering_alpha = 0.5) {
-  assignment_prior <- match.arg(assignment_prior)
-  ordering_alpha <- as.numeric(ordering_alpha)[1]
-  if (!is.finite(ordering_alpha) || ordering_alpha <= 0) {
-    stop("ordering_alpha must be a single finite positive number.")
+.warn_assignment_prior_deprecated <- local({
+  warned <- FALSE
+  function(caller = "soft_partition_cavi()") {
+    if (warned) return(invisible(NULL))
+    warned <<- TRUE
+    warning(
+      "`assignment_prior` is deprecated; use `partition_prior` and ",
+      "`partition_prior_init` instead.",
+      call. = FALSE
+    )
+    invisible(NULL)
   }
+})
+
+.warn_ordering_alpha_deprecated <- local({
+  warned <- FALSE
+  function(caller = "soft_partition_cavi()") {
+    if (warned) return(invisible(NULL))
+    warned <<- TRUE
+    warning(
+      "`ordering_alpha` is deprecated and only used by the legacy ",
+      "`assignment_prior = \"dirichlet\"` compatibility path.",
+      call. = FALSE
+    )
+    invisible(NULL)
+  }
+})
+
+.validate_partition_assignment_controls <- function(partition_prior = c("adaptive", "fixed"),
+                                                    partition_prior_init = NULL,
+                                                    assignment_prior = NULL,
+                                                    ordering_alpha = NULL,
+                                                    M,
+                                                    partition_prior_missing = FALSE,
+                                                    caller = "soft_partition_cavi()") {
+  partition_prior <- match.arg(partition_prior)
+  assignment_mode <- partition_prior
+  legacy_assignment_prior <- NULL
+  ordering_alpha_use <- NA_real_
+
+  if (!is.null(assignment_prior)) {
+    assignment_prior <- as.character(assignment_prior)[1]
+    if (!assignment_prior %in% c("uniform", "dirichlet")) {
+      stop("assignment_prior must be one of \"uniform\" or \"dirichlet\".", call. = FALSE)
+    }
+    .warn_assignment_prior_deprecated(caller = caller)
+    if (identical(assignment_prior, "uniform")) {
+      if (!isTRUE(partition_prior_missing) && !identical(partition_prior, "fixed")) {
+        stop(
+          caller,
+          ": deprecated `assignment_prior = \"uniform\"` conflicts with ",
+          "`partition_prior = \"", partition_prior, "\"`.",
+          call. = FALSE
+        )
+      }
+      partition_prior <- "fixed"
+      assignment_mode <- "fixed"
+      legacy_assignment_prior <- "uniform"
+      if (!is.null(ordering_alpha)) {
+        .warn_ordering_alpha_deprecated(caller = caller)
+      }
+    } else {
+      if (!isTRUE(partition_prior_missing) && identical(partition_prior, "fixed")) {
+        stop(
+          caller,
+          ": deprecated `assignment_prior = \"dirichlet\"` conflicts with ",
+          "`partition_prior = \"fixed\"`.",
+          call. = FALSE
+        )
+      }
+      partition_prior <- "adaptive"
+      assignment_mode <- "legacy_dirichlet"
+      legacy_assignment_prior <- "dirichlet"
+      if (!is.null(ordering_alpha)) {
+        .warn_ordering_alpha_deprecated(caller = caller)
+      }
+      ordering_alpha_use <- if (is.null(ordering_alpha)) 0.5 else as.numeric(ordering_alpha)[1]
+      if (!is.finite(ordering_alpha_use) || ordering_alpha_use <= 0) {
+        stop("ordering_alpha must be a single finite positive number.", call. = FALSE)
+      }
+    }
+  }
+
+  if (!is.null(partition_prior_init)) {
+    init <- as.numeric(partition_prior_init)
+    if (length(init) != M || any(!is.finite(init)) || any(init < 0) || sum(init) <= 0) {
+      stop(
+        caller,
+        ": `partition_prior_init` must be a nonnegative vector of length M with positive sum.",
+        call. = FALSE
+      )
+    }
+    partition_prior_init <- init / sum(init)
+  }
+
+  if (identical(assignment_mode, "legacy_dirichlet") && !is.null(partition_prior_init)) {
+    warning(
+      "`partition_prior_init` is ignored by the deprecated ",
+      "`assignment_prior = \"dirichlet\"` compatibility path.",
+      call. = FALSE
+    )
+  }
+
   list(
-    assignment_prior = assignment_prior,
-    ordering_alpha = ordering_alpha
+    partition_prior = partition_prior,
+    partition_prior_init = partition_prior_init,
+    assignment_mode = assignment_mode,
+    legacy_assignment_prior = legacy_assignment_prior,
+    ordering_alpha = ordering_alpha_use
+  )
+}
+
+.partition_assignment_weights <- function(weights,
+                                          active_orderings,
+                                          active_feature_pairs = NULL) {
+  weights <- as.matrix(weights)
+  M <- ncol(weights)
+  d <- nrow(weights)
+  active_orderings <- as.logical(active_orderings)
+  if (length(active_orderings) != M) {
+    stop("active_orderings must have length equal to ncol(weights).")
+  }
+  if (is.null(active_feature_pairs)) {
+    active_feature_pairs <- matrix(rep(active_orderings, each = d), nrow = d, ncol = M)
+  } else {
+    active_feature_pairs <- as.matrix(active_feature_pairs)
+    if (!all(dim(active_feature_pairs) == c(d, M))) {
+      stop("active_feature_pairs must be a d x M matrix.")
+    }
+  }
+  active_feature_pairs[, !active_orderings] <- FALSE
+  weights_use <- weights
+  weights_use[!active_feature_pairs] <- 0
+  weights_use[, !active_orderings] <- 0
+  weights_use
+}
+
+.partition_zero_mass_ordering_drop <- function(weights,
+                                               active_orderings,
+                                               active_feature_pairs = NULL,
+                                               iter_index = NA_integer_,
+                                               T_now = NA_real_,
+                                               ordering_labels = NULL,
+                                               stage = c("pre_update", "post_update")) {
+  stage <- match.arg(stage)
+  weights_use <- .partition_assignment_weights(
+    weights = weights,
+    active_orderings = active_orderings,
+    active_feature_pairs = active_feature_pairs
+  )
+  M <- ncol(weights_use)
+  if (is.null(ordering_labels)) {
+    ordering_labels <- .cavi_partition_order_labels(M)
+  }
+  active_now <- as.logical(active_orderings)
+  usage_mass <- colSums(weights_use)
+  drop_idx <- integer(0)
+  ordering_events <- list()
+
+  if (sum(active_now) > 1L) {
+    drop_idx <- which(active_now & usage_mass <= 0)
+    if (length(drop_idx) >= sum(active_now)) {
+      keep_idx <- which.max(ifelse(active_now, usage_mass, -Inf))
+      drop_idx <- setdiff(drop_idx, keep_idx)
+    }
+    for (m in drop_idx) {
+      active_now[m] <- FALSE
+      ordering_events[[length(ordering_events) + 1L]] <- .make_partition_ordering_event(
+        event = "drop_zero_mass",
+        ordering = m,
+        ordering_label = ordering_labels[m],
+        step = iter_index,
+        T_now = T_now,
+        usage_mass = usage_mass[m],
+        threshold = 0,
+        stage = stage
+      )
+    }
+  }
+
+  list(
+    active_orderings = active_now,
+    drop_idx = drop_idx,
+    usage_mass = usage_mass,
+    ordering_events = ordering_events
   )
 }
 
@@ -1145,15 +1320,25 @@
 
 .cavi_partition_assignment_info <- function(weights,
                                             T_now = 1,
-                                            assignment_prior = c("uniform", "dirichlet"),
-                                            ordering_alpha = 0.5,
+                                            partition_prior = c("adaptive", "fixed"),
+                                            partition_prior_init = NULL,
+                                            assignment_prior = NULL,
+                                            ordering_alpha = NULL,
                                             assignment_M = NULL,
                                             active_orderings = NULL,
-                                            drop_unused_ordering = FALSE) {
+                                            active_feature_pairs = NULL,
+                                            drop_unused_ordering = FALSE,
+                                            partition_prior_missing = FALSE,
+                                            caller = ".cavi_partition_assignment_info()") {
   weights <- as.matrix(weights)
   ctl <- .validate_partition_assignment_controls(
+    partition_prior = partition_prior,
+    partition_prior_init = partition_prior_init,
     assignment_prior = assignment_prior,
-    ordering_alpha = ordering_alpha
+    ordering_alpha = ordering_alpha,
+    M = ncol(weights),
+    partition_prior_missing = partition_prior_missing,
+    caller = caller
   )
   M <- ncol(weights)
   d <- nrow(weights)
@@ -1164,15 +1349,28 @@
   if (length(active_orderings) != M) {
     stop("active_orderings must have length equal to ncol(weights).")
   }
-  active_idx <- if (isTRUE(drop_unused_ordering)) which(active_orderings) else seq_len(M)
+  active_idx <- if (identical(ctl$assignment_mode, "legacy_dirichlet")) {
+    if (isTRUE(drop_unused_ordering)) which(active_orderings) else seq_len(M)
+  } else {
+    which(active_orderings)
+  }
   if (!length(active_idx)) {
     stop("At least one ordering must remain active.")
   }
-  weights_use <- weights[, active_idx, drop = FALSE]
-  if (isTRUE(drop_unused_ordering)) {
+  weights_assignment <- .partition_assignment_weights(
+    weights = weights,
+    active_orderings = active_orderings,
+    active_feature_pairs = active_feature_pairs
+  )
+  weights_use <- weights_assignment[, active_idx, drop = FALSE]
+  if (identical(ctl$assignment_mode, "legacy_dirichlet")) {
+    if (isTRUE(drop_unused_ordering)) {
+      assignment_M <- length(active_idx)
+    } else if (is.null(assignment_M)) {
+      assignment_M <- M
+    }
+  } else {
     assignment_M <- length(active_idx)
-  } else if (is.null(assignment_M)) {
-    assignment_M <- M
   }
   if (!is.numeric(assignment_M) || length(assignment_M) != 1L ||
       !is.finite(assignment_M) || assignment_M < 1) {
@@ -1182,19 +1380,69 @@
   z_entropy <- -sum(weights_use * log(weights_use + 1e-300))
   e_log_omega_full <- rep(0, M)
   posterior_alpha_full <- rep(NA_real_, M)
+  omega_full <- rep(0, M)
+  assignment_prior_label <- ctl$legacy_assignment_prior %||%
+    if (identical(ctl$assignment_mode, "fixed") && is.null(ctl$partition_prior_init)) {
+      "uniform"
+    } else {
+      ctl$partition_prior
+    }
 
-  if (ctl$assignment_prior == "uniform") {
-    e_log_omega_use <- rep(log(1 / assignment_M), length(active_idx))
+  if (identical(ctl$assignment_mode, "fixed")) {
+    if (is.null(ctl$partition_prior_init)) {
+      omega_use <- rep(1 / length(active_idx), length(active_idx))
+    } else {
+      omega_use <- ctl$partition_prior_init[active_idx]
+      if (sum(omega_use) <= 0) {
+        stop(
+          "partition_prior_init must place positive mass on the currently active orderings.",
+          call. = FALSE
+        )
+      }
+      omega_use <- omega_use / sum(omega_use)
+    }
+    e_log_omega_use <- log(pmax(omega_use, 1e-300))
     e_log_omega_full[active_idx] <- e_log_omega_use
+    omega_full[active_idx] <- omega_use
+    expected_log_assign <- sum(weights_use * rep(e_log_omega_use, each = d))
     return(list(
-      assignment_prior = ctl$assignment_prior,
+      assignment_prior = assignment_prior_label,
+      partition_prior = ctl$partition_prior,
+      assignment_mode = ctl$assignment_mode,
+      legacy_assignment_prior = ctl$legacy_assignment_prior,
       ordering_alpha = ctl$ordering_alpha,
+      omega = omega_full,
       e_log_omega = e_log_omega_full,
       posterior_alpha = NULL,
-      expected_log_assign = .cavi_partition_uniform_log_prior(d = d, M = assignment_M),
+      expected_log_assign = as.numeric(expected_log_assign),
       kl_q_p = 0,
       z_entropy = as.numeric(z_entropy),
-      objective = as.numeric(.cavi_partition_uniform_log_prior(d = d, M = assignment_M) + T_now * z_entropy),
+      objective = as.numeric(expected_log_assign + T_now * z_entropy),
+      active_idx = active_idx,
+      assignment_M = as.numeric(assignment_M)
+    ))
+  }
+
+  if (identical(ctl$assignment_mode, "adaptive")) {
+    omega_use <- colSums(weights_use)
+    omega_use <- omega_use / sum(omega_use)
+    e_log_omega_use <- log(pmax(omega_use, 1e-300))
+    expected_log_assign <- sum(weights_use * rep(e_log_omega_use, each = d))
+    e_log_omega_full[active_idx] <- e_log_omega_use
+    omega_full[active_idx] <- omega_use
+    return(list(
+      assignment_prior = assignment_prior_label,
+      partition_prior = ctl$partition_prior,
+      assignment_mode = ctl$assignment_mode,
+      legacy_assignment_prior = ctl$legacy_assignment_prior,
+      ordering_alpha = ctl$ordering_alpha,
+      omega = omega_full,
+      e_log_omega = e_log_omega_full,
+      posterior_alpha = NULL,
+      expected_log_assign = as.numeric(expected_log_assign),
+      kl_q_p = 0,
+      z_entropy = as.numeric(z_entropy),
+      objective = as.numeric(expected_log_assign + T_now * z_entropy),
       active_idx = active_idx,
       assignment_M = as.numeric(assignment_M)
     ))
@@ -1205,12 +1453,18 @@
   e_log_omega_use <- digamma(posterior_alpha) - digamma(sum(posterior_alpha))
   expected_log_assign <- sum(weights_use * rep(e_log_omega_use, each = d))
   kl_q_p <- .cavi_dirichlet_kl(posterior_alpha, prior_alpha)
+  omega_use <- posterior_alpha / sum(posterior_alpha)
   e_log_omega_full[active_idx] <- e_log_omega_use
   posterior_alpha_full[active_idx] <- posterior_alpha
+  omega_full[active_idx] <- omega_use
 
   list(
-    assignment_prior = ctl$assignment_prior,
+    assignment_prior = assignment_prior_label,
+    partition_prior = ctl$partition_prior,
+    assignment_mode = ctl$assignment_mode,
+    legacy_assignment_prior = ctl$legacy_assignment_prior,
     ordering_alpha = ctl$ordering_alpha,
+    omega = omega_full,
     e_log_omega = e_log_omega_full,
     posterior_alpha = posterior_alpha_full,
     expected_log_assign = as.numeric(expected_log_assign),
@@ -1219,6 +1473,17 @@
     objective = as.numeric(expected_log_assign + T_now * z_entropy - kl_q_p),
     active_idx = active_idx,
     assignment_M = as.numeric(assignment_M)
+  )
+}
+
+.cavi_partition_assignment_state <- function(assignment_info) {
+  list(
+    assignment_mode = assignment_info$assignment_mode,
+    legacy_assignment_prior = assignment_info$legacy_assignment_prior,
+    alpha = assignment_info$posterior_alpha,
+    e_log_omega = assignment_info$e_log_omega,
+    assignment_M = assignment_info$assignment_M,
+    active_idx = assignment_info$active_idx
   )
 }
 
@@ -1396,7 +1661,7 @@
     X = X,
     K = length(init$pi),
     responsibilities_init = gamma0,
-    pi_init = init$pi,
+    position_prior_init = init$pi,
     S = S,
     lambda_init = rep(lambda_init, ncol(X)),
     lambda_sd_prior_rate = lambda_sd_prior_rate,
@@ -1492,7 +1757,7 @@
     X = X_sub,
     K = K_use,
     responsibilities_init = gamma_init,
-    pi_init = colMeans(gamma_init),
+    position_prior_init = colMeans(gamma_init),
     S = S,
     lambda_init = rep(lambda_init, ncol(X_sub)),
     lambda_sd_prior_rate = lambda_sd_prior_rate,
@@ -1839,16 +2104,25 @@
                                                 active_orderings = NULL,
                                                 active_feature_pairs = NULL,
                                                 assignment_M = NULL,
-                                                assignment_prior = c("uniform", "dirichlet"),
-                                                ordering_alpha = 0.5,
-                                                drop_unused_ordering = FALSE) {
+                                                partition_prior = c("adaptive", "fixed"),
+                                                partition_prior_init = NULL,
+                                                assignment_prior = NULL,
+                                                ordering_alpha = NULL,
+                                                drop_unused_ordering = FALSE,
+                                                partition_prior_missing = FALSE,
+                                                caller = ".cavi_partition_objective_from_fits()") {
   X <- as.matrix(X)
   weights <- as.matrix(weights)
   M <- length(fits)
   d <- ncol(X)
   assignment_ctl <- .validate_partition_assignment_controls(
+    partition_prior = partition_prior,
+    partition_prior_init = partition_prior_init,
     assignment_prior = assignment_prior,
-    ordering_alpha = ordering_alpha
+    ordering_alpha = ordering_alpha,
+    M = M,
+    partition_prior_missing = partition_prior_missing,
+    caller = caller
   )
   if (is.null(active_orderings)) {
     active_orderings <- rep(TRUE, M)
@@ -1895,13 +2169,21 @@
   } else {
     sum(cell_terms_by_fit)
   }
+  weights_assignment <- .partition_assignment_weights(
+    weights = weights,
+    active_orderings = active_orderings,
+    active_feature_pairs = active_feature_pairs
+  )
   assignment_info <- .cavi_partition_assignment_info(
     weights = weights,
     T_now = T_now,
-    assignment_prior = assignment_ctl$assignment_prior,
+    partition_prior = assignment_ctl$partition_prior,
+    partition_prior_init = assignment_ctl$partition_prior_init,
+    assignment_prior = assignment_ctl$legacy_assignment_prior,
     ordering_alpha = assignment_ctl$ordering_alpha,
     assignment_M = assignment_M,
     active_orderings = active_orderings,
+    active_feature_pairs = active_feature_pairs,
     drop_unused_ordering = drop_unused_ordering
   )
 
@@ -1913,15 +2195,12 @@
         assignment_info$objective
     ),
     like_mat = like_mat,
+    weights_assignment = weights_assignment,
     prior_entropy_mat = prior_entropy_mat,
     prior_entropy_raw = prior_entropy_raw,
     cell_terms = as.numeric(cell_terms),
     cell_terms_by_fit = as.numeric(cell_terms_by_fit),
-    assignment_log_prior = if (assignment_ctl$assignment_prior == "uniform") {
-      as.numeric(assignment_info$expected_log_assign)
-    } else {
-      NA_real_
-    },
+    assignment_log_prior = as.numeric(assignment_info$expected_log_assign),
     assignment_info = assignment_info,
     z_entropy = as.numeric(assignment_info$z_entropy),
     active_orderings = active_orderings,
@@ -2439,6 +2718,7 @@
   w_eff[!feature_active] <- 0
   R <- as.matrix(object$gamma)
   pi_vec <- as.numeric(object$params$pi)
+  position_prior <- (object$control %||% list())$position_prior %||% "adaptive"
   measurement_sd <- object$measurement_sd %||% NULL
   sigma2 <- if (is.null(measurement_sd)) as.numeric(object$params$sigma2) else NULL
   lambda_vec <- as.numeric(object$lambda_vec)
@@ -2457,6 +2737,7 @@
     out$control$feature_weights <- w_eff
     out$control$feature_active <- feature_active
     out$control$adaptive <- "variational"
+    out$control$position_prior <- position_prior
     out$control$lambda_sd_prior_rate <- lambda_sd_prior_rate_use
     out$data <- X
     return(out)
@@ -2520,8 +2801,10 @@
       measurement_sd = measurement_sd,
       feature_weights = w_eff
     )
-    pi_vec <- pmax(colMeans(R), .Machine$double.eps)
-    pi_vec <- pi_vec / sum(pi_vec)
+    if (identical(position_prior, "adaptive")) {
+      pi_vec <- pmax(colMeans(R), .Machine$double.eps)
+      pi_vec <- pi_vec / sum(pi_vec)
+    }
     sigma2 <- .cavi_update_sigma2_weighted(
       X = X,
       R = R,
@@ -2595,6 +2878,7 @@
   out$control$feature_weights <- w_eff
   out$control$feature_active <- feature_active
   out$control$adaptive <- "variational"
+  out$control$position_prior <- position_prior
   out$control$lambda_sd_prior_rate <- lambda_sd_prior_rate_use
   out$data <- X
   out
@@ -2889,7 +3173,7 @@ init_two_trajectories_cavi <- function(X,
       X = X,
       K = K_use,
       responsibilities_init = fit1_half$gamma,
-      pi_init = fit1_half$params$pi,
+      position_prior_init = fit1_half$params$pi,
       S = S,
       lambda_init = rep(1, d),
       lambda_sd_prior_rate = lambda_sd_prior_rate,
@@ -2905,7 +3189,7 @@ init_two_trajectories_cavi <- function(X,
     )
     fit2_args <- fit1_args
     fit2_args$responsibilities_init <- fit2_half$gamma
-    fit2_args$pi_init <- fit2_half$params$pi
+    fit2_args$position_prior_init <- fit2_half$params$pi
     if (is.null(S)) {
       fit1_args$sigma2_init <- pmax(apply(X, 2, stats::var), 1e-10)
       fit2_args$sigma2_init <- fit1_args$sigma2_init
@@ -3129,13 +3413,16 @@ init_m_trajectories_cavi <- function(X,
                                  active_orderings = NULL,
                                  active_feature_pairs = NULL,
                                  weights_prev = NULL,
+                                 position_prior = c("adaptive", "fixed"),
                                  freeze_unused_ordering = TRUE,
                                  freeze_unused_ordering_threshold = 0.5,
                                  freeze_feature = TRUE,
                                  freeze_feature_weight_threshold = .cavi_partition_feature_freeze_threshold_default(),
                                  drop_unused_ordering = FALSE,
-                                 assignment_prior = c("uniform", "dirichlet"),
-                                 ordering_alpha = 0.5,
+                                 partition_prior = c("adaptive", "fixed"),
+                                 partition_prior_init = NULL,
+                                 assignment_prior = NULL,
+                                 ordering_alpha = NULL,
                                  iter_index = NA_integer_,
                                  ordering_labels = NULL) {
   M <- length(fits)
@@ -3165,9 +3452,14 @@ init_m_trajectories_cavi <- function(X,
   if (length(ordering_labels) != M) {
     stop("ordering_labels must have length equal to length(fits).")
   }
+  position_prior <- match.arg(position_prior)
   assignment_ctl <- .validate_partition_assignment_controls(
+    partition_prior = partition_prior,
+    partition_prior_init = partition_prior_init,
     assignment_prior = assignment_prior,
-    ordering_alpha = ordering_alpha
+    ordering_alpha = ordering_alpha,
+    M = M,
+    caller = ".soft_partition_step()"
   )
   inactive_ctl <- .validate_partition_inactive_controls(
     freeze_unused_ordering = freeze_unused_ordering,
@@ -3191,18 +3483,43 @@ init_m_trajectories_cavi <- function(X,
   active_pairs_now <- active_feature_pairs
   ordering_events <- list()
   feature_events <- list()
+  weights_prev_work <- weights_prev
+
+  if (identical(assignment_ctl$assignment_mode, "adaptive")) {
+    zero_drop_pre_seed <- .partition_zero_mass_ordering_drop(
+      weights = weights_prev_work,
+      active_orderings = active_now,
+      active_feature_pairs = active_pairs_now,
+      iter_index = iter_index,
+      T_now = T_now,
+      ordering_labels = ordering_labels,
+      stage = "pre_update"
+    )
+    active_now <- zero_drop_pre_seed$active_orderings
+    active_pairs_now[, !active_now] <- FALSE
+    ordering_events <- c(ordering_events, zero_drop_pre_seed$ordering_events)
+    if (!inactive_ctl$drop_unused_ordering && length(zero_drop_pre_seed$drop_idx) > 0L) {
+      weights_prev_work <- .partition_register_new_frozen_weights(
+        reported_prev = weights_prev_work,
+        snapshot_weights = weights_prev,
+        drop_idx = zero_drop_pre_seed$drop_idx
+      )
+    }
+  }
 
   # Score each fit using the expected log-likelihood block and the current
   # assignment prior state implied by the previous weights.
   objective_pre <- .cavi_partition_objective_from_fits(
     fits = fits,
     X = X,
-    weights = weights_prev,
+    weights = weights_prev_work,
     T_now = T_now,
     active_orderings = active_now,
     active_feature_pairs = active_pairs_now,
     assignment_M = M,
-    assignment_prior = assignment_ctl$assignment_prior,
+    partition_prior = assignment_ctl$partition_prior,
+    partition_prior_init = assignment_ctl$partition_prior_init,
+    assignment_prior = assignment_ctl$legacy_assignment_prior,
     ordering_alpha = assignment_ctl$ordering_alpha,
     drop_unused_ordering = inactive_ctl$drop_unused_ordering
   )
@@ -3219,10 +3536,9 @@ init_m_trajectories_cavi <- function(X,
   reported_weights_candidate <- .partition_compose_reported_weights(
     effective_weights = effective_weights_candidate,
     active_feature_pairs = active_pairs_now,
-    reported_prev = weights_prev,
+    reported_prev = weights_prev_work,
     drop_unused_ordering = inactive_ctl$drop_unused_ordering
   )
-  weights_prev_work <- weights_prev
 
   if (feature_ctl$freeze_feature) {
     freeze_feature_pre <- .partition_freeze_features(
@@ -3245,6 +3561,42 @@ init_m_trajectories_cavi <- function(X,
       )
     }
     if (any(freeze_feature_pre$new_frozen_mask)) {
+      effective_weights_candidate <- .soft_partition_softmax(
+        score_mat_aug,
+        T_now = T_now,
+        active_orderings = active_now,
+        active_feature_pairs = active_pairs_now
+      )
+      reported_weights_candidate <- .partition_compose_reported_weights(
+        effective_weights = effective_weights_candidate,
+        active_feature_pairs = active_pairs_now,
+        reported_prev = weights_prev_work,
+        drop_unused_ordering = inactive_ctl$drop_unused_ordering
+      )
+    }
+  }
+
+  if (identical(assignment_ctl$assignment_mode, "adaptive")) {
+    zero_drop_pre <- .partition_zero_mass_ordering_drop(
+      weights = effective_weights_candidate,
+      active_orderings = active_now,
+      active_feature_pairs = active_pairs_now,
+      iter_index = iter_index,
+      T_now = T_now,
+      ordering_labels = ordering_labels,
+      stage = "pre_update"
+    )
+    active_now <- zero_drop_pre$active_orderings
+    active_pairs_now[, !active_now] <- FALSE
+    ordering_events <- c(ordering_events, zero_drop_pre$ordering_events)
+    if (!inactive_ctl$drop_unused_ordering && length(zero_drop_pre$drop_idx) > 0L) {
+      weights_prev_work <- .partition_register_new_frozen_weights(
+        reported_prev = weights_prev_work,
+        snapshot_weights = reported_weights_candidate,
+        drop_idx = zero_drop_pre$drop_idx
+      )
+    }
+    if (length(zero_drop_pre$drop_idx) > 0L) {
       effective_weights_candidate <- .soft_partition_softmax(
         score_mat_aug,
         T_now = T_now,
@@ -3304,6 +3656,7 @@ init_m_trajectories_cavi <- function(X,
 
   # Weighted CAVI update on each fit
   for (m in which(active_now)) {
+    fits[[m]]$control$position_prior <- position_prior
     fits[[m]] <- .do_cavi_weighted(
       object = fits[[m]],
       data = X,
@@ -3329,7 +3682,9 @@ init_m_trajectories_cavi <- function(X,
     active_orderings = active_now,
     active_feature_pairs = active_pairs_now,
     assignment_M = M,
-    assignment_prior = assignment_ctl$assignment_prior,
+    partition_prior = assignment_ctl$partition_prior,
+    partition_prior_init = assignment_ctl$partition_prior_init,
+    assignment_prior = assignment_ctl$legacy_assignment_prior,
     ordering_alpha = assignment_ctl$ordering_alpha,
     drop_unused_ordering = inactive_ctl$drop_unused_ordering
   )
@@ -3375,6 +3730,42 @@ init_m_trajectories_cavi <- function(X,
       )
     }
     if (any(freeze_feature_post$new_frozen_mask)) {
+      effective_weights_post_candidate <- .soft_partition_softmax(
+        score_mat_post_aug,
+        T_now = T_now,
+        active_orderings = active_now,
+        active_feature_pairs = active_pairs_now
+      )
+      reported_weights_post_candidate <- .partition_compose_reported_weights(
+        effective_weights = effective_weights_post_candidate,
+        active_feature_pairs = active_pairs_now,
+        reported_prev = weights_prev_post_work,
+        drop_unused_ordering = inactive_ctl$drop_unused_ordering
+      )
+    }
+  }
+
+  if (identical(assignment_ctl$assignment_mode, "adaptive")) {
+    zero_drop_post <- .partition_zero_mass_ordering_drop(
+      weights = effective_weights_post_candidate,
+      active_orderings = active_now,
+      active_feature_pairs = active_pairs_now,
+      iter_index = iter_index,
+      T_now = T_now,
+      ordering_labels = ordering_labels,
+      stage = "post_update"
+    )
+    active_now <- zero_drop_post$active_orderings
+    active_pairs_now[, !active_now] <- FALSE
+    ordering_events <- c(ordering_events, zero_drop_post$ordering_events)
+    if (!inactive_ctl$drop_unused_ordering && length(zero_drop_post$drop_idx) > 0L) {
+      weights_prev_post_work <- .partition_register_new_frozen_weights(
+        reported_prev = weights_prev_post_work,
+        snapshot_weights = reported_weights_post_candidate,
+        drop_idx = zero_drop_post$drop_idx
+      )
+    }
+    if (length(zero_drop_post$drop_idx) > 0L) {
       effective_weights_post_candidate <- .soft_partition_softmax(
         score_mat_post_aug,
         T_now = T_now,
@@ -3442,7 +3833,9 @@ init_m_trajectories_cavi <- function(X,
     active_orderings = active_now,
     active_feature_pairs = active_pairs_now,
     assignment_M = M,
-    assignment_prior = assignment_ctl$assignment_prior,
+    partition_prior = assignment_ctl$partition_prior,
+    partition_prior_init = assignment_ctl$partition_prior_init,
+    assignment_prior = assignment_ctl$legacy_assignment_prior,
     ordering_alpha = assignment_ctl$ordering_alpha,
     drop_unused_ordering = inactive_ctl$drop_unused_ordering
   )
@@ -3472,7 +3865,9 @@ init_m_trajectories_cavi <- function(X,
     active_orderings = active_now,
     active_feature_pairs = active_pairs_now,
     assignment_M = M,
-    assignment_prior = assignment_ctl$assignment_prior,
+    partition_prior = assignment_ctl$partition_prior,
+    partition_prior_init = assignment_ctl$partition_prior_init,
+    assignment_prior = assignment_ctl$legacy_assignment_prior,
     ordering_alpha = assignment_ctl$ordering_alpha,
     drop_unused_ordering = inactive_ctl$drop_unused_ordering
   )
@@ -3490,13 +3885,8 @@ init_m_trajectories_cavi <- function(X,
     ordering_events = ordering_events,
     feature_events = feature_events,
     freeze_happened = freeze_happened,
-    assignment_posterior = list(
-      assignment_prior = assignment_ctl$assignment_prior,
-      ordering_alpha = assignment_ctl$ordering_alpha,
-      alpha = objective_post$assignment_info$posterior_alpha,
-      e_log_omega = objective_post$assignment_info$e_log_omega,
-      assignment_M = objective_post$assignment_info$assignment_M
-    )
+    assignment_info = objective_post$assignment_info,
+    assignment_posterior = .cavi_partition_assignment_state(objective_post$assignment_info)
   )
 }
 
@@ -3669,10 +4059,28 @@ init_m_trajectories_cavi <- function(X,
 #' @param sigma_min,sigma_max Bounds for \code{sigma_j^2}. These are used both
 #'   in the weighted CAVI updates and by the \code{"smooth_fit"} similarity
 #'   metric when \code{partition_init = "similarity"}.
-#' @param assignment_prior Either \code{"uniform"} or \code{"dirichlet"} for
-#'   the partition assignment prior.
-#' @param ordering_alpha Positive scalar concentration parameter used when
-#'   \code{assignment_prior = "dirichlet"}.
+#' @param position_prior Either \code{"adaptive"} or \code{"fixed"} for the
+#'   within-ordering component prior \code{pi}. When fixed, the weighted CAVI
+#'   updates keep each ordering's \code{pi} constant.
+#' @param position_prior_init Optional length-\code{K} initial/fixed vector for
+#'   the within-ordering component prior \code{pi}. When
+#'   \code{position_prior = "fixed"} and this is \code{NULL}, a uniform prior
+#'   over the \code{K} positions is used. A single vector is broadcast to all
+#'   orderings.
+#' @param partition_prior Either \code{"adaptive"} or \code{"fixed"} for the
+#'   ordering-usage prior \code{omega}. The adaptive mode uses an empirical-
+#'   Bayes update over the active orderings; exact zero-mass orderings are
+#'   dropped from the active set before the next prior/objective evaluation.
+#' @param partition_prior_init Optional length-\code{M} initial/fixed vector for
+#'   the ordering prior \code{omega}. Used only when
+#'   \code{partition_prior = "fixed"}. When omitted, the fixed prior defaults
+#'   to uniform over the active orderings.
+#' @param assignment_prior Deprecated compatibility argument for the old
+#'   partition-prior API. \code{"uniform"} maps to
+#'   \code{partition_prior = "fixed"} with a uniform prior. \code{"dirichlet"}
+#'   remains available only as a deprecated compatibility path.
+#' @param ordering_alpha Deprecated compatibility argument used only for the
+#'   legacy \code{assignment_prior = "dirichlet"} path.
 #' @param hard_assign_final Logical; make hard assignments at the end?
 #' @param freeze_unused_ordering Logical; if \code{TRUE}, orderings whose
 #'   feature-posterior mass falls below
@@ -3697,7 +4105,9 @@ init_m_trajectories_cavi <- function(X,
 #'   their trajectory \code{U}-block contribution is neutralized to zero. When
 #'   \code{drop_unused_ordering = TRUE}, the exposed \code{$objective_history}
 #'   is the post-drop fitting objective of the active model and should not be
-#'   compared across requested values of \code{M}.
+#'   compared across requested values of \code{M}. Fixed-\code{M} fits may
+#'   still contain frozen orderings; greedy model selection is responsible for
+#'   normalizing cross-\code{M} comparisons to the active dimension.
 #' @param verbose Logical.
 #'
 #' @return An object of class \code{"soft_partition_cavi"} with fields:
@@ -3719,9 +4129,10 @@ init_m_trajectories_cavi <- function(X,
 #'   \code{$objective_history} has two user-facing semantics. If
 #'   \code{drop_unused_ordering = FALSE}, it is the fixed-requested-\code{M}
 #'   comparison objective intended for comparing fits across requested
-#'   \code{M}. If \code{drop_unused_ordering = TRUE}, it is the post-drop
-#'   fitting objective of the active model and is not intended for
-#'   cross-\code{M} comparison.
+#'   \code{M}; frozen orderings may still be present in that fixed-\code{M}
+#'   state. If \code{drop_unused_ordering = TRUE}, it is the post-drop fitting
+#'   objective of the active model and is not intended for cross-\code{M}
+#'   comparison.
 #' @export
 soft_partition_cavi <- function(X,
                                 S = NULL,
@@ -3750,8 +4161,12 @@ soft_partition_cavi <- function(X,
                                 lambda_max = 1e10,
                                 sigma_min = 1e-10,
                                 sigma_max = 1e10,
-                                assignment_prior = c("uniform", "dirichlet"),
-                                ordering_alpha = 0.5,
+                                position_prior = c("adaptive", "fixed"),
+                                position_prior_init = NULL,
+                                partition_prior = c("adaptive", "fixed"),
+                                partition_prior_init = NULL,
+                                assignment_prior = NULL,
+                                ordering_alpha = NULL,
                                 hard_assign_final = FALSE,
                                 freeze_unused_ordering = TRUE,
                                 freeze_unused_ordering_threshold = 0.5,
@@ -3766,6 +4181,9 @@ soft_partition_cavi <- function(X,
   discretization <- match.arg(discretization)
   similarity_metric <- match.arg(similarity_metric)
   smooth_fit_lambda_mode <- match.arg(smooth_fit_lambda_mode)
+  position_prior <- match.arg(position_prior)
+  partition_prior_missing <- missing(partition_prior)
+  partition_prior <- match.arg(partition_prior)
   cluster_linkage <- .cavi_validate_cluster_linkage(cluster_linkage)
   similarity_min_feature_sd <- as.numeric(similarity_min_feature_sd)[1]
   lambda_sd_prior_rate <- .normalize_lambda_sd_prior_rate(lambda_sd_prior_rate)
@@ -3776,8 +4194,13 @@ soft_partition_cavi <- function(X,
     stop("similarity_min_feature_sd must be a single finite nonnegative number.")
   }
   assignment_ctl <- .validate_partition_assignment_controls(
+    partition_prior = partition_prior,
+    partition_prior_init = partition_prior_init,
     assignment_prior = assignment_prior,
-    ordering_alpha = ordering_alpha
+    ordering_alpha = ordering_alpha,
+    M = M,
+    partition_prior_missing = partition_prior_missing,
+    caller = "soft_partition_cavi()"
   )
   inactive_ctl <- .validate_partition_inactive_controls(
     freeze_unused_ordering = freeze_unused_ordering,
@@ -3875,6 +4298,34 @@ soft_partition_cavi <- function(X,
     warning("fits_init already determines K=", unique(K_vals),
             "; ignoring the requested K=", as.integer(K), ".", call. = FALSE)
   }
+  K_common <- unique(K_vals)
+
+  position_prior_ctl <- .cavi_validate_position_prior(
+    position_prior = position_prior,
+    position_prior_init = position_prior_init,
+    K = K_common,
+    caller = "soft_partition_cavi()"
+  )
+
+  fits <- lapply(fits, function(fit) {
+    fit$control <- utils::modifyList(
+      fit$control %||% list(),
+      list(position_prior = position_prior_ctl$position_prior)
+    )
+    if (!is.null(position_prior_ctl$position_prior_init) ||
+        identical(position_prior_ctl$position_prior, "fixed")) {
+      fit$params$pi <- .cavi_initialize_position_prior(
+        R = fit$gamma,
+        K = K_common,
+        position_prior = position_prior_ctl$position_prior,
+        position_prior_init = position_prior_ctl$position_prior_init
+      )
+      if (length(fit$pi_trace %||% list())) {
+        fit$pi_trace[[length(fit$pi_trace)]] <- fit$params$pi
+      }
+    }
+    fit
+  })
 
   # Initial weights: uniform 1/M
   pi_weights <- matrix(1 / M, nrow = d, ncol = M)
@@ -3906,12 +4357,15 @@ soft_partition_cavi <- function(X,
                                  active_orderings = active_orderings,
                                  active_feature_pairs = active_feature_pairs,
                                  weights_prev = pi_weights,
+                                 position_prior = position_prior_ctl$position_prior,
                                  freeze_unused_ordering = inactive_ctl$freeze_unused_ordering,
                                  freeze_unused_ordering_threshold = inactive_ctl$freeze_unused_ordering_threshold,
                                  freeze_feature = feature_ctl$freeze_feature,
                                  freeze_feature_weight_threshold = feature_ctl$freeze_feature_weight_threshold,
                                  drop_unused_ordering = inactive_ctl$drop_unused_ordering,
-                                 assignment_prior = assignment_ctl$assignment_prior,
+                                 partition_prior = assignment_ctl$partition_prior,
+                                 partition_prior_init = assignment_ctl$partition_prior_init,
+                                 assignment_prior = assignment_ctl$legacy_assignment_prior,
                                  ordering_alpha = assignment_ctl$ordering_alpha,
                                  iter_index = iter,
                                  ordering_labels = ord_labels)
@@ -3948,12 +4402,15 @@ soft_partition_cavi <- function(X,
                                  active_orderings = active_orderings,
                                  active_feature_pairs = active_feature_pairs,
                                  weights_prev = pi_weights,
+                                 position_prior = position_prior_ctl$position_prior,
                                  freeze_unused_ordering = inactive_ctl$freeze_unused_ordering,
                                  freeze_unused_ordering_threshold = inactive_ctl$freeze_unused_ordering_threshold,
                                  freeze_feature = feature_ctl$freeze_feature,
                                  freeze_feature_weight_threshold = feature_ctl$freeze_feature_weight_threshold,
                                  drop_unused_ordering = inactive_ctl$drop_unused_ordering,
-                                 assignment_prior = assignment_ctl$assignment_prior,
+                                 partition_prior = assignment_ctl$partition_prior,
+                                 partition_prior_init = assignment_ctl$partition_prior_init,
+                                 assignment_prior = assignment_ctl$legacy_assignment_prior,
                                  ordering_alpha = assignment_ctl$ordering_alpha,
                                  iter_index = idx,
                                  ordering_labels = ord_labels)
@@ -4025,21 +4482,20 @@ soft_partition_cavi <- function(X,
   assignment_info_final <- .cavi_partition_assignment_info(
     weights = pi_weights,
     T_now = T_end,
-    assignment_prior = assignment_ctl$assignment_prior,
+    partition_prior = assignment_ctl$partition_prior,
+    partition_prior_init = assignment_ctl$partition_prior_init,
+    assignment_prior = assignment_ctl$legacy_assignment_prior,
     ordering_alpha = assignment_ctl$ordering_alpha,
     assignment_M = M,
     active_orderings = active_orderings,
+    active_feature_pairs = active_feature_pairs,
     drop_unused_ordering = inactive_ctl$drop_unused_ordering
   )
-  assignment_posterior <- list(
-    assignment_prior = assignment_ctl$assignment_prior,
-    ordering_alpha = assignment_ctl$ordering_alpha,
-    alpha = assignment_info_final$posterior_alpha,
-    e_log_omega = assignment_info_final$e_log_omega
-  )
+  assignment_posterior <- .cavi_partition_assignment_state(assignment_info_final)
 
-  structure(
+  out <- structure(
     list(
+      data = X,
       measurement_sd = partition_measurement_sd,
       pi_weights = pi_weights,
       effective_pi_weights = effective_pi_weights,
@@ -4066,7 +4522,11 @@ soft_partition_cavi <- function(X,
       control = list(
         noise_model = partition_noise_info$noise_model,
         lambda_sd_prior_rate = lambda_sd_prior_rate,
-        assignment_prior = assignment_ctl$assignment_prior,
+        position_prior = position_prior_ctl$position_prior,
+        partition_prior = assignment_ctl$partition_prior,
+        partition_prior_init = assignment_ctl$partition_prior_init,
+        assignment_prior = assignment_info_final$assignment_prior,
+        assignment_mode = assignment_ctl$assignment_mode,
         ordering_alpha = assignment_ctl$ordering_alpha,
         tol_outer = tol_outer,
         partition_init = applied_partition_init,
@@ -4086,6 +4546,8 @@ soft_partition_cavi <- function(X,
     ),
     class = "soft_partition_cavi"
   )
+  out$priors <- .mpcurve_priors_from_partition_fit(out)
+  out
 }
 
 
@@ -4121,9 +4583,21 @@ soft_partition_cavi <- function(X,
 #'   single-ordering \code{cavi} updates.
 #' @param sigma_min,sigma_max Bounds for the feature-specific noise variance
 #'   \code{sigma2_j}. Forwarded to internal \code{cavi()} calls.
-#' @param assignment_prior Either \code{"uniform"} or \code{"dirichlet"}.
-#' @param ordering_alpha Positive scalar used when
-#'   \code{assignment_prior = "dirichlet"}.
+#' @param position_prior Either \code{"adaptive"} or \code{"fixed"} for the
+#'   within-ordering component prior \code{pi}.
+#' @param position_prior_init Optional length-\code{K} initial/fixed vector for
+#'   the within-ordering component prior \code{pi}. When
+#'   \code{position_prior = "fixed"} and this is \code{NULL}, a uniform prior
+#'   over the \code{K} positions is used.
+#' @param partition_prior Either \code{"adaptive"} or \code{"fixed"} for the
+#'   ordering-usage prior \code{omega}.
+#' @param partition_prior_init Optional length-2 initial/fixed vector for the
+#'   ordering prior \code{omega}. Used only when
+#'   \code{partition_prior = "fixed"}.
+#' @param assignment_prior Deprecated compatibility argument for the old
+#'   partition-prior API.
+#' @param ordering_alpha Deprecated compatibility argument used only for the
+#'   legacy \code{assignment_prior = "dirichlet"} path.
 #' @param hard_assign_final Logical.
 #' @param freeze_unused_ordering Logical; if \code{TRUE}, unused orderings may
 #'   be frozen and skipped in subsequent updates.
@@ -4170,8 +4644,12 @@ soft_two_trajectory_cavi <- function(X,
                                      lambda_max = 1e10,
                                      sigma_min = 1e-10,
                                      sigma_max = 1e10,
-                                     assignment_prior = c("uniform", "dirichlet"),
-                                     ordering_alpha = 0.5,
+                                     position_prior = c("adaptive", "fixed"),
+                                     position_prior_init = NULL,
+                                     partition_prior = c("adaptive", "fixed"),
+                                     partition_prior_init = NULL,
+                                     assignment_prior = NULL,
+                                     ordering_alpha = NULL,
                                      hard_assign_final = FALSE,
                                      freeze_unused_ordering = TRUE,
                                      freeze_unused_ordering_threshold = 0.5,
@@ -4182,6 +4660,15 @@ soft_two_trajectory_cavi <- function(X,
   init_method <- match.arg(init_method)
   init_method1 <- match.arg(init_method1)
   discretization <- match.arg(discretization)
+  position_prior <- match.arg(position_prior)
+  partition_prior_missing <- missing(partition_prior)
+  partition_prior <- match.arg(partition_prior)
+  if (isTRUE(partition_prior_missing) && !is.null(assignment_prior)) {
+    assignment_prior_chr <- as.character(assignment_prior)[1]
+    if (assignment_prior_chr %in% c("uniform", "dirichlet")) {
+      partition_prior <- if (identical(assignment_prior_chr, "uniform")) "fixed" else "adaptive"
+    }
+  }
   X <- as.matrix(X)
 
   # Build fits_init from old-style parameters
@@ -4229,6 +4716,10 @@ soft_two_trajectory_cavi <- function(X,
     lambda_sd_prior_rate = lambda_sd_prior_rate,
     lambda_min = lambda_min, lambda_max = lambda_max,
     sigma_min = sigma_min, sigma_max = sigma_max,
+    position_prior = position_prior,
+    position_prior_init = position_prior_init,
+    partition_prior = partition_prior,
+    partition_prior_init = partition_prior_init,
     assignment_prior = assignment_prior,
     ordering_alpha = ordering_alpha,
     hard_assign_final = hard_assign_final,

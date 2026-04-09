@@ -143,6 +143,66 @@ test_that("cavi supports zero-iteration initialization and continuation", {
   expect_equal(fit1$control$gamma_preinit, "direct_penalized")
 })
 
+test_that("fixed position_prior keeps pi constant and do_cavi inherits it", {
+  sim <- simulate_cavi_toy(
+    n = 80,
+    d = 8,
+    K = 5,
+    rw_q = 2,
+    seed = 103
+  )
+  pi_fixed <- c(0.5, 0.2, 0.15, 0.1, 0.05)
+
+  fit0 <- cavi(
+    sim$X,
+    K = 5,
+    method = "PCA",
+    rw_q = 2,
+    position_prior = "fixed",
+    position_prior_init = pi_fixed,
+    max_iter = 3,
+    tol = 0,
+    verbose = FALSE
+  )
+
+  expect_equal(fit0$params$pi, pi_fixed, tolerance = 1e-10)
+  expect_true(all(vapply(fit0$pi_trace, function(x) {
+    isTRUE(all.equal(as.numeric(x), pi_fixed, tolerance = 1e-10))
+  }, logical(1))))
+  expect_equal(fit0$control$position_prior, "fixed")
+
+  fit1 <- do_cavi(fit0, iter = 2L, tol = 0, verbose = FALSE)
+  expect_equal(fit1$params$pi, pi_fixed, tolerance = 1e-10)
+  expect_true(all(vapply(fit1$pi_trace, function(x) {
+    isTRUE(all.equal(as.numeric(x), pi_fixed, tolerance = 1e-10))
+  }, logical(1))))
+  expect_equal(fit1$control$position_prior, "fixed")
+})
+
+test_that("fixed position_prior defaults to uniform when no init is supplied", {
+  sim <- simulate_cavi_toy(
+    n = 60,
+    d = 6,
+    K = 4,
+    rw_q = 2,
+    seed = 104
+  )
+
+  fit <- cavi(
+    sim$X,
+    K = 4,
+    method = "PCA",
+    rw_q = 2,
+    position_prior = "fixed",
+    max_iter = 2,
+    tol = 0,
+    verbose = FALSE
+  )
+
+  expect_equal(fit$params$pi, rep(0.25, 4), tolerance = 1e-10)
+  expect_equal(fit$control$position_prior, "fixed")
+})
+
 test_that("raw gamma pre-init moments match responsibility-weighted formulas", {
   X <- matrix(c(
     1, 4,
@@ -394,7 +454,7 @@ test_that("known feature-sd vector and repeated matrix inputs are equivalent", {
     sim$X,
     K = 5,
     responsibilities_init = gamma_init,
-    pi_init = colMeans(gamma_init),
+    position_prior_init = colMeans(gamma_init),
     S = S_vec,
     lambda_init = rep(3, ncol(sim$X)),
     fix_lambda = TRUE,
@@ -407,7 +467,7 @@ test_that("known feature-sd vector and repeated matrix inputs are equivalent", {
     sim$X,
     K = 5,
     responsibilities_init = gamma_init,
-    pi_init = colMeans(gamma_init),
+    position_prior_init = colMeans(gamma_init),
     S = S_mat,
     lambda_init = rep(3, ncol(sim$X)),
     fix_lambda = TRUE,
@@ -420,6 +480,31 @@ test_that("known feature-sd vector and repeated matrix inputs are equivalent", {
   expect_equal(fit_vec$gamma, fit_mat$gamma, tolerance = 1e-10)
   expect_equal(fit_vec$posterior$mean, fit_mat$posterior$mean, tolerance = 1e-10)
   expect_equal(fit_vec$elbo_trace, fit_mat$elbo_trace, tolerance = 1e-10)
+})
+
+test_that("pi_init remains as a deprecated alias for position_prior_init", {
+  sim <- simulate_cavi_toy(
+    n = 40,
+    d = 4,
+    K = 4,
+    rw_q = 2,
+    seed = 142
+  )
+  gamma_init <- matrix(0, nrow = nrow(sim$X), ncol = 4)
+  gamma_init[cbind(seq_len(nrow(sim$X)), sim$z)] <- 1
+
+  expect_warning(
+    fit <- cavi(
+      sim$X,
+      K = 4,
+      responsibilities_init = gamma_init,
+      pi_init = colMeans(gamma_init),
+      max_iter = 0,
+      verbose = FALSE
+    ),
+    "deprecated"
+  )
+  expect_equal(fit$params$pi, colMeans(gamma_init), tolerance = 1e-10)
 })
 
 test_that("do_cavi reuses known observation-level measurement sd", {
@@ -453,5 +538,33 @@ test_that("do_cavi reuses known observation-level measurement sd", {
   expect_error(
     do_cavi(fit0, iter = 1, S = S * 1.01, verbose = FALSE),
     "does not match"
+  )
+})
+
+test_that("cavi reports detailed diagnostics when known-sd precision loses positive definiteness", {
+  set.seed(1)
+  X <- matrix(rnorm(40), nrow = 10, ncol = 4)
+  S <- rep(10, ncol(X))
+  gamma_init <- matrix(0, nrow = nrow(X), ncol = 5)
+  gamma_init[, 3] <- 1
+
+  expect_error(
+    cavi(
+      X,
+      K = 5,
+      S = S,
+      responsibilities_init = gamma_init,
+      rw_q = 2,
+      ridge = 0,
+      max_iter = 1,
+      verbose = FALSE
+    ),
+    regexp = paste(
+      "posterior precision update failed",
+      "not numerically positive definite",
+      "effective components=1/5",
+      "ridge = 1e-6",
+      sep = ".*"
+    )
   )
 })

@@ -146,7 +146,43 @@ test_that("soft partition objective follows the coherent ELBO decomposition", {
     obj_terms$objective,
     tolerance = 1e-8
   )
+  weights_assignment <- obj_terms$weights_assignment
+  omega_hat <- colSums(weights_assignment)
+  omega_hat <- omega_hat[obj_terms$assignment_info$active_idx]
+  omega_hat <- omega_hat / sum(omega_hat)
+  expected_assign <- sum(
+    weights_assignment[, obj_terms$assignment_info$active_idx, drop = FALSE] *
+      rep(log(omega_hat), each = ncol(X))
+  )
+  expect_equal(obj_terms$assignment_log_prior, expected_assign, tolerance = 1e-8)
+})
+
+test_that("fixed partition_prior retains the uniform assignment term", {
+  set.seed(15)
+  X <- matrix(rnorm(240), 40, 6)
+
+  inits <- suppressWarnings(init_m_trajectories_cavi(
+    X,
+    M = 3,
+    methods = c("PCA", "PCA", "random"),
+    pca_components = c(1L, 2L, 1L),
+    K = 6,
+    ridge = 1e-3,
+    num_iter = 2L,
+    verbose = FALSE
+  ))
+
+  weights <- matrix(1 / 3, nrow = ncol(X), ncol = 3)
+  obj_terms <- getFromNamespace(".cavi_partition_objective_from_fits", "MPCurver")(
+    fits = inits$fits,
+    X = X,
+    weights = weights,
+    T_now = 1,
+    partition_prior = "fixed"
+  )
+
   expect_equal(obj_terms$assignment_log_prior, -ncol(X) * log(3), tolerance = 1e-8)
+  expect_equal(obj_terms$assignment_info$partition_prior, "fixed")
 })
 
 test_that("dirichlet assignment prior is included in the partition objective", {
@@ -286,7 +322,7 @@ test_that("inactive ordering is pre-frozen before weighted update and stays froz
   expect_equal(step2$pi_weights[, 3], frozen_weights, tolerance = 0)
   event_types <- vapply(step1$ordering_events, `[[`, character(1), "event")
   event_stages <- vapply(step1$ordering_events, `[[`, character(1), "stage")
-  expect_true(any(event_types == "freeze"))
+  expect_true(any(event_types %in% c("freeze", "drop_zero_mass")))
   expect_true(any(event_stages == "pre_update"))
 })
 
@@ -542,7 +578,9 @@ test_that("simple monotone similarity example concentrates objective at the true
 
   expect_lt(tail(fit6_keep$objective_history, 1L), tail(fit2$objective_history, 1L))
   expect_equal(sum(fit6_keep$fit$active_orderings), 2L)
-  expect_equal(fit6_drop$intrinsic_dim, 2L)
+  expect_equal(fit6_drop$intrinsic_dim, 6L)
+  expect_equal(fit6_drop$active_intrinsic_dim, 2L)
+  expect_equal(fit6_drop$displayed_intrinsic_dim, 2L)
 })
 
 test_that("weighted cavi with unit feature weights matches standard cavi exactly", {
@@ -685,6 +723,19 @@ test_that("unused properized ordering contributes zero prior-entropy mass", {
   expect_equal(sum(unused_terms$prior_entropy), 0, tolerance = 1e-6)
   expect_equal(
     obj_pair$objective - obj_single$objective,
+    0,
+    tolerance = 1e-6
+  )
+
+  obj_pair_fixed <- getFromNamespace(".cavi_partition_objective_from_fits", "MPCurver")(
+    fits = list(fit_used, fit_unused),
+    X = X,
+    weights = cbind(rep(1, ncol(X)), rep(0, ncol(X))),
+    T_now = 1,
+    partition_prior = "fixed"
+  )
+  expect_equal(
+    obj_pair_fixed$objective - obj_single$objective,
     -ncol(X) * log(2),
     tolerance = 1e-6
   )
@@ -880,14 +931,20 @@ test_that("partition wrappers preserve freeze controls and optional dropped view
     tolerance = 1e-8
   )
   expect_true(all(is.na(res$assignment_posterior$alpha[-active_idx])))
+  expect_null(res$assignment_posterior$omega)
+  expect_null(res$assignment_posterior$partition_prior)
+  expect_null(res$assignment_posterior$assignment_prior)
 
   fit <- as_mpcurve(res)
-  expect_equal(fit$intrinsic_dim, 2L)
+  expect_equal(fit$intrinsic_dim, 3L)
   expect_equal(fit$requested_intrinsic_dim, 3L)
+  expect_equal(fit$active_intrinsic_dim, 2L)
+  expect_equal(fit$displayed_intrinsic_dim, 2L)
   expect_equal(fit$partition$dropped_labels, "C")
   expect_equal(fit$partition$frozen_labels, "C")
   expect_true(isTRUE(fit$partition$compacted))
   expect_true(length(fit$ordering_events) >= 1L)
+  expect_equal(names(fitted_prior(fit, type = "partition")$omega), c("A", "B", "C"))
 
   fit_wrap <- suppressWarnings(fit_mpcurve(
     X,
@@ -905,8 +962,10 @@ test_that("partition wrappers preserve freeze controls and optional dropped view
     max_converge_iter = 1,
     verbose = FALSE
   ))
-  expect_equal(fit_wrap$intrinsic_dim, 2L)
+  expect_equal(fit_wrap$intrinsic_dim, 3L)
   expect_equal(fit_wrap$requested_intrinsic_dim, 3L)
+  expect_equal(fit_wrap$active_intrinsic_dim, 2L)
+  expect_equal(fit_wrap$displayed_intrinsic_dim, 2L)
   expect_equal(fit_wrap$partition$dropped_labels, "C")
   expect_equal(fit_wrap$partition$frozen_labels, "C")
   expect_true(isTRUE(fit_wrap$partition$compacted))
@@ -916,10 +975,23 @@ test_that("partition wrappers preserve freeze controls and optional dropped view
   expect_true(isTRUE(fit_wrap$fit$control$freeze_unused_ordering))
   expect_equal(fit_wrap$fit$control$freeze_unused_ordering_threshold, 1.0)
   expect_true(isTRUE(fit_wrap$fit$control$drop_unused_ordering))
+  expect_true(is.matrix(fit_wrap$data))
+  expect_null(fit_wrap$fit$assignment_posterior$omega)
+
+  tmp_plot <- tempfile(fileext = ".pdf")
+  grDevices::pdf(tmp_plot)
+  on.exit({
+    if (grDevices::dev.cur() > 1L) grDevices::dev.off()
+    unlink(tmp_plot)
+  }, add = TRUE)
+  expect_no_error(plot(fit_wrap, dims = 1))
+  grDevices::dev.off()
 
   fit2 <- suppressWarnings(do_mpcurve(fit, iter = 1, verbose = FALSE))
-  expect_equal(fit2$intrinsic_dim, 2L)
+  expect_equal(fit2$intrinsic_dim, 3L)
   expect_equal(fit2$requested_intrinsic_dim, 3L)
+  expect_equal(fit2$active_intrinsic_dim, 2L)
+  expect_equal(fit2$displayed_intrinsic_dim, 2L)
   expect_equal(fit2$partition$dropped_labels, "C")
   expect_equal(fit2$partition$frozen_labels, "C")
   expect_true(isTRUE(fit2$partition$compacted))

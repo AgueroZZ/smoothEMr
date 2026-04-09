@@ -9,6 +9,8 @@ cavi(
   K = NULL,
   method = c("PCA", "fiedler", "pcurve", "tSNE", "random", "isomap"),
   responsibilities_init = NULL,
+  position_prior = c("adaptive", "fixed"),
+  position_prior_init = NULL,
   pi_init = NULL,
   sigma2_init = NULL,
   S = NULL,
@@ -36,7 +38,17 @@ cavi(
 
 \item{responsibilities_init}{Optional initial responsibility matrix (\eqn{n \times K}).}
 
-\item{pi_init}{Optional initial mixture proportions.}
+\item{position_prior}{Either \code{"adaptive"} or \code{"fixed"} for the
+cell-position prior over latent components. \code{"adaptive"} updates
+\code{pi} by empirical Bayes from the current responsibilities, while
+\code{"fixed"} keeps it constant throughout fitting.}
+
+\item{position_prior_init}{Optional length-\code{K} initial/fixed prior
+vector for latent component positions. When omitted and
+\code{position_prior = "fixed"}, a uniform prior is used. Deprecated
+alias: \code{pi_init}.}
+
+\item{pi_init}{Deprecated alias for \code{position_prior_init}.}
 
 \item{sigma2_init}{Optional initial feature-specific variances.}
 

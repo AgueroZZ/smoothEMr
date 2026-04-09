@@ -306,6 +306,7 @@ test_that("fit_mpcurve can use similarity initialization for intrinsic_dim > 1",
 
   expect_s3_class(fit, "mpcurve")
   expect_equal(fit$algorithm, "cavi")
+  expect_equal(fit$intrinsic_dim, 3L)
   expect_equal(fit$requested_intrinsic_dim, 3L)
   expect_equal(fit$fit$control$partition_init, "similarity")
   expect_true(!is.null(fit$similarity_init))

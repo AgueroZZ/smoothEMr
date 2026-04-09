@@ -25,8 +25,12 @@ fit_mpcurve(
   lambda_max = 1e+10,
   sigma_min = 1e-10,
   sigma_max = 1e+10,
-  assignment_prior = c("uniform", "dirichlet"),
-  ordering_alpha = 0.5,
+  position_prior = c("adaptive", "fixed"),
+  position_prior_init = NULL,
+  partition_prior = c("adaptive", "fixed"),
+  partition_prior_init = NULL,
+  assignment_prior = NULL,
+  ordering_alpha = NULL,
   similarity_metric = c("spearman", "pearson", "smooth_fit"),
   smooth_fit_lambda_mode = c("optimize", "fixed"),
   smooth_fit_lambda_value = 1,
@@ -85,9 +89,11 @@ Values \code{>= 2} fit the partition-CAVI model.}
 \item{greedy}{Dimension-selection mode. \code{"none"} keeps the requested
 \code{intrinsic_dim}. \code{"forward"} treats \code{intrinsic_dim} as an
 upper bound and compares \eqn{M} versus \eqn{M+1} sequentially starting
-from \eqn{M=1}. \code{"backward"} fits the upper bound first, then
-compares \eqn{M} versus \eqn{M-1} while greedily removing the most
-correlated active ordering.}
+from \eqn{M=1}. Greedy comparison is normalized to the active intrinsic
+dimension after compaction, so a collapsed candidate cannot justify
+moving to a larger model. \code{"backward"} fits the upper bound first,
+then compares active \eqn{M} versus a warm-started smaller model while
+greedily removing the most correlated active ordering.}
 
 \item{partition_init}{For partition fits only: either
 \code{"similarity"} for feature-similarity-driven block initialization or
@@ -114,11 +120,35 @@ exponential prior with rate zero.}
 to the single-ordering CAVI path and to the \code{"smooth_fit"}
 similarity metric when \code{partition_init = "similarity"}.}
 
-\item{assignment_prior}{For partition fits only: either \code{"uniform"} or
-\code{"dirichlet"}.}
+\item{position_prior}{Either \code{"adaptive"} or \code{"fixed"} for the
+single-ordering component prior \code{pi}. In the partition path, this
+mode is forwarded to each ordering-specific weighted CAVI update.}
 
-\item{ordering_alpha}{For partition fits only: positive scalar concentration
-used when \code{assignment_prior = "dirichlet"}.}
+\item{position_prior_init}{Optional length-\code{K} initial/fixed vector for
+the component prior \code{pi}. When \code{position_prior = "fixed"} and
+this is \code{NULL}, a uniform prior over the \code{K} positions is used.
+For \code{intrinsic_dim > 1}, a single length-\code{K} vector is
+broadcast to all orderings.}
+
+\item{partition_prior}{For partition fits only: either \code{"adaptive"} or
+\code{"fixed"} for the ordering-usage prior \code{omega}. The adaptive
+mode uses an empirical-Bayes update \code{omega_hat \propto colSums(w)}
+over the currently active orderings. The fixed mode keeps a constant prior
+and renormalizes it over the active ordering set after any drops/freeze
+events.}
+
+\item{partition_prior_init}{For partition fits only: optional length-\code{M}
+initial/fixed vector for the ordering prior \code{omega}. Used only when
+\code{partition_prior = "fixed"}. When omitted, the fixed prior defaults
+to uniform over the active orderings.}
+
+\item{assignment_prior}{Deprecated compatibility argument for the old
+partition-prior API. \code{"uniform"} maps to
+\code{partition_prior = "fixed"} with a uniform prior. \code{"dirichlet"}
+remains available only as a deprecated compatibility path.}
+
+\item{ordering_alpha}{Deprecated compatibility argument used only for the
+legacy \code{assignment_prior = "dirichlet"} path.}
 
 \item{similarity_metric}{For \code{partition_init = "similarity"} only:
 feature-similarity metric used to construct feature blocks. One of
@@ -174,13 +204,15 @@ threshold on \code{w_{jm}} used when \code{freeze_feature = TRUE}.}
 returned \code{mpcurve} view may compact away frozen orderings. With
 \code{FALSE}, the reported partition \code{$objective_history} is the
 fixed-requested-\code{M} comparison objective; with \code{TRUE}, it is
-the post-drop fitting objective of the active model.}
+the post-drop fitting objective of the active model. Greedy search always
+reports the selected active dimension after compaction.}
 
 \item{verbose}{Logical; print per-iteration progress?}
 
 \item{...}{Advanced CAVI / partition-CAVI options forwarded to the underlying
 backend. This is intended for advanced initialization controls such as
-\code{responsibilities_init}, \code{pi_init}, \code{sigma2_init},
+\code{responsibilities_init}, deprecated \code{pi_init},
+\code{sigma2_init},
 \code{fits_init}, \code{init_methods}, \code{pca_components}, or
 \code{hard_assign_final}. Legacy smoothEM/csmoothEM controls are rejected.}
 }

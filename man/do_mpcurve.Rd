@@ -82,12 +82,13 @@ partition \code{$objective_history} retains fixed-requested-\code{M}
 comparison semantics; when \code{TRUE}, it becomes the post-drop fitting
 objective of the active model.}
 
-\item{assignment_prior}{For partition fits only: either \code{"uniform"} or
-\code{"dirichlet"}. If \code{NULL}, reuse the stored value.}
+\item{assignment_prior}{Deprecated compatibility argument for continuing old
+partition fits that still store the legacy assignment-prior interface. If
+\code{NULL}, \code{do_mpcurve()} reuses the stored prior mode.}
 
-\item{ordering_alpha}{For partition fits only: positive scalar concentration
-used when \code{assignment_prior = "dirichlet"}. If \code{NULL}, reuse the
-stored value.}
+\item{ordering_alpha}{Deprecated compatibility argument used only for the
+legacy \code{assignment_prior = "dirichlet"} path. If \code{NULL},
+\code{do_mpcurve()} reuses the stored value.}
 
 \item{verbose}{Logical. Print per-iteration progress?}
 }

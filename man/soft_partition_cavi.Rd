@@ -32,8 +32,12 @@ soft_partition_cavi(
   lambda_max = 1e+10,
   sigma_min = 1e-10,
   sigma_max = 1e+10,
-  assignment_prior = c("uniform", "dirichlet"),
-  ordering_alpha = 0.5,
+  position_prior = c("adaptive", "fixed"),
+  position_prior_init = NULL,
+  partition_prior = c("adaptive", "fixed"),
+  partition_prior_init = NULL,
+  assignment_prior = NULL,
+  ordering_alpha = NULL,
   hard_assign_final = FALSE,
   freeze_unused_ordering = TRUE,
   freeze_unused_ordering_threshold = 0.5,
@@ -126,11 +130,33 @@ correspond to a literal exponential prior with rate zero.}
 in the weighted CAVI updates and by the \code{"smooth_fit"} similarity
 metric when \code{partition_init = "similarity"}.}
 
-\item{assignment_prior}{Either \code{"uniform"} or \code{"dirichlet"} for
-the partition assignment prior.}
+\item{position_prior}{Either \code{"adaptive"} or \code{"fixed"} for the
+within-ordering component prior \code{pi}. When fixed, the weighted CAVI
+updates keep each ordering's \code{pi} constant.}
 
-\item{ordering_alpha}{Positive scalar concentration parameter used when
-\code{assignment_prior = "dirichlet"}.}
+\item{position_prior_init}{Optional length-\code{K} initial/fixed vector for
+the within-ordering component prior \code{pi}. When
+\code{position_prior = "fixed"} and this is \code{NULL}, a uniform prior
+over the \code{K} positions is used. A single vector is broadcast to all
+orderings.}
+
+\item{partition_prior}{Either \code{"adaptive"} or \code{"fixed"} for the
+ordering-usage prior \code{omega}. The adaptive mode uses an empirical-
+Bayes update over the active orderings; exact zero-mass orderings are
+dropped from the active set before the next prior/objective evaluation.}
+
+\item{partition_prior_init}{Optional length-\code{M} initial/fixed vector for
+the ordering prior \code{omega}. Used only when
+\code{partition_prior = "fixed"}. When omitted, the fixed prior defaults
+to uniform over the active orderings.}
+
+\item{assignment_prior}{Deprecated compatibility argument for the old
+partition-prior API. \code{"uniform"} maps to
+\code{partition_prior = "fixed"} with a uniform prior. \code{"dirichlet"}
+remains available only as a deprecated compatibility path.}
+
+\item{ordering_alpha}{Deprecated compatibility argument used only for the
+legacy \code{assignment_prior = "dirichlet"} path.}
 
 \item{hard_assign_final}{Logical; make hard assignments at the end?}
 
@@ -161,7 +187,9 @@ their preserved feature-assignment weights and cell-ordering block, while
 their trajectory \code{U}-block contribution is neutralized to zero. When
 \code{drop_unused_ordering = TRUE}, the exposed \code{$objective_history}
 is the post-drop fitting objective of the active model and should not be
-compared across requested values of \code{M}.}
+compared across requested values of \code{M}. Fixed-\code{M} fits may
+still contain frozen orderings; greedy model selection is responsible for
+normalizing cross-\code{M} comparisons to the active dimension.}
 
 \item{verbose}{Logical.}
 }
@@ -185,9 +213,10 @@ An object of class \code{"soft_partition_cavi"} with fields:
   \code{$objective_history} has two user-facing semantics. If
   \code{drop_unused_ordering = FALSE}, it is the fixed-requested-\code{M}
   comparison objective intended for comparing fits across requested
-  \code{M}. If \code{drop_unused_ordering = TRUE}, it is the post-drop
-  fitting objective of the active model and is not intended for
-  cross-\code{M} comparison.
+  \code{M}; frozen orderings may still be present in that fixed-\code{M}
+  state. If \code{drop_unused_ordering = TRUE}, it is the post-drop fitting
+  objective of the active model and is not intended for cross-\code{M}
+  comparison.
 }
 \description{
 Generalised soft partition routine supporting \eqn{M \ge 2} orderings.
