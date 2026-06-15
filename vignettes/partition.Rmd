@@ -35,19 +35,19 @@ its own ordering.
 The partition model with $M$ orderings introduces:
 
 - a feature-level assignment $z_j \in \{1,\dots,M\}$,
-- $M$ independent latent orderings $t_i^{(m)} \in \{1,\dots,K\}$, $m = 1,\dots,M$,
-- and $M$ sets of smooth trajectories $u_j^{(m)} \in \mathbb{R}^K$.
+- $M$ independent latent orderings $c_i^{(m)} \in \{1,\dots,K\}$, $m = 1,\dots,M$,
+- and $M$ sets of smooth trajectories $\boldsymbol{u}_j^{(m)} \in \mathbb{R}^K$.
 
 The observation model becomes:
 $$
-x_{ij} \mid z_j = m,\; t_i^{(m)} = k
+x_{ij} \mid z_j = m,\; c_i^{(m)} = k,\; \boldsymbol{u}_j^{(m)}
 \;\sim\;
 N\!\bigl(u_{jk}^{(m)},\; \sigma_j^2\bigr).
 $$
 
 Each trajectory retains the GMRF prior:
 $$
-u_j^{(m)} \sim N\!\bigl(0,\; (\lambda_j^{(m)} Q_K)^{-1}\bigr).
+\boldsymbol{u}_j^{(m)} \sim N\!\bigl(0,\; (\lambda_j^{(m)} Q_K)^{-1}\bigr).
 $$
 
 The goal is to recover both the **partition** (which features belong to which
@@ -71,9 +71,9 @@ For each feature $j$ and ordering $m$, the assignment update uses the
 $$
 \ell_{jm}^{\mathrm{like}}
 =
-\mathbb{E}_{q(C^{(m)}) q(u_j^{(m)})}
+\mathbb{E}_{q(C^{(m)}) q(\boldsymbol{u}_j^{(m)})}
 \big[
-\log p(x_{\cdot j} \mid z_j = m,\; C^{(m)},\; u_j^{(m)})
+\log p(x_{\cdot j} \mid z_j = m,\; C^{(m)},\; \boldsymbol{u}_j^{(m)})
 \big],
 $$
 which expands to
@@ -134,7 +134,7 @@ $$
   + \sum_j \sum_{m=1}^M
     \Big[
       w_{jm}\,\ell_{jm}^{\mathrm{like}}
-      - \mathrm{KL}\!\bigl(q(u_j^{(m)}) \,\|\, p(u_j^{(m)})\bigr)
+      - \mathrm{KL}\!\bigl(q(\boldsymbol{u}_j^{(m)}) \,\|\, p(\boldsymbol{u}_j^{(m)})\bigr)
     \Big].
 $$
 

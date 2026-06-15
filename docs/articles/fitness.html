@@ -94,7 +94,7 @@ backend exposed by <code><a href="../reference/fit_mpcurve.html">fit_mpcurve()</
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"MPCurver"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">MPCurver</span><span class="op">)</span></span>
+<span>  <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://aguerozz.github.io/MPCurver/">MPCurver</a></span><span class="op">)</span></span>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"devtools"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/devtools/man/load_all.html" class="external-link">load_all</a></span><span class="op">(</span><span class="st">"."</span>, quiet <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
@@ -352,12 +352,11 @@ Larger values encourage smoother trajectories.</p>
 <span><span class="co">#&gt; MPCurve fit</span></span>
 <span><span class="co">#&gt;   Backend        : cavi</span></span>
 <span><span class="co">#&gt;   Model          : homoskedastic</span></span>
-<span><span class="co">#&gt;   n / d / K : 421 / 45 / 50</span></span>
+<span><span class="co">#&gt;   Intrinsic dim  : 1</span></span>
+<span><span class="co">#&gt;   n / d / K      : 421 / 45 / 50</span></span>
 <span><span class="co">#&gt;   Iterations     : 349</span></span>
-<span><span class="co">#&gt;   Position prior : adaptive</span></span>
 <span><span class="co">#&gt;   Converged      : yes</span></span>
-<span><span class="co">#&gt;   ELBO (last)   : 11842.508096</span></span>
-<span><span class="co">#&gt;   logLik (last): 14069.441003</span></span></code></pre></div>
+<span><span class="co">#&gt;   ELBO (last)    : 11842.508096</span></span></code></pre></div>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_unidir_smooth</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
@@ -421,16 +420,11 @@ based on the ELBO.</p>
 <span><span class="co">#&gt;   Greedy search  : backward (upper bound 4 -&gt; selected 3)</span></span>
 <span><span class="co">#&gt;   Dim (req/act/view): 3 / 3 / 3</span></span>
 <span><span class="co">#&gt;   n / d / K      : 421 / 45 / 50</span></span>
+<span><span class="co">#&gt;   Iterations     : 83</span></span>
 <span><span class="co">#&gt;   Partition      : A=35, B=1, C=9</span></span>
 <span><span class="co">#&gt;   Active         : A, B, C</span></span>
-<span><span class="co">#&gt;   Position prior : adaptive</span></span>
-<span><span class="co">#&gt;   Partition prior: adaptive</span></span>
 <span><span class="co">#&gt;   Objective (last): 12526.762490</span></span>
-<span><span class="co">#&gt;   Objective type : fixed-requested-M comparison</span></span>
-<span><span class="co">#&gt;   Converged      : TRUE</span></span>
-<span><span class="co">#&gt;   Phase-2 rel_delta   : 9.154e-06</span></span>
-<span><span class="co">#&gt;   Small-step streak: 3</span></span>
-<span><span class="co">#&gt;   Reason         : Phase-2 rel_delta stayed below 1.0e-05 for 3 consecutive nonnegative steps.</span></span></code></pre></div>
+<span><span class="co">#&gt;   Converged      : TRUE</span></span></code></pre></div>
 <div class="section level3">
 <h3 id="look-at-some-fitted-orderings">Look at some fitted orderings<a class="anchor" aria-label="anchor" href="#look-at-some-fitted-orderings"></a>
 </h3>
@@ -802,12 +796,11 @@ improving.</p>
 <span><span class="co">#&gt;   Backend        : cavi</span></span>
 <span><span class="co">#&gt;   Greedy search  : forward (upper bound 4 -&gt; selected 1)</span></span>
 <span><span class="co">#&gt;   Model          : homoskedastic</span></span>
-<span><span class="co">#&gt;   n / d / K : 421 / 45 / 50</span></span>
+<span><span class="co">#&gt;   Intrinsic dim  : 1</span></span>
+<span><span class="co">#&gt;   n / d / K      : 421 / 45 / 50</span></span>
 <span><span class="co">#&gt;   Iterations     : 235</span></span>
-<span><span class="co">#&gt;   Position prior : adaptive</span></span>
 <span><span class="co">#&gt;   Converged      : yes</span></span>
-<span><span class="co">#&gt;   ELBO (last)   : 13531.873663</span></span>
-<span><span class="co">#&gt;   logLik (last): 16205.048990</span></span></code></pre></div>
+<span><span class="co">#&gt;   ELBO (last)    : 13531.873663</span></span></code></pre></div>
 <p>It is also useful to check the same question from the other direction
 by starting from the upper bound and pruning redundant orderings.</p>
 <div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
@@ -830,12 +823,11 @@ by starting from the upper bound and pruning redundant orderings.</p>
 <span><span class="co">#&gt;   Backend        : cavi</span></span>
 <span><span class="co">#&gt;   Greedy search  : backward (upper bound 4 -&gt; selected 1)</span></span>
 <span><span class="co">#&gt;   Model          : homoskedastic</span></span>
-<span><span class="co">#&gt;   n / d / K : 421 / 45 / 50</span></span>
+<span><span class="co">#&gt;   Intrinsic dim  : 1</span></span>
+<span><span class="co">#&gt;   n / d / K      : 421 / 45 / 50</span></span>
 <span><span class="co">#&gt;   Iterations     : 197</span></span>
-<span><span class="co">#&gt;   Position prior : adaptive</span></span>
 <span><span class="co">#&gt;   Converged      : yes</span></span>
-<span><span class="co">#&gt;   ELBO (last)   : 13591.042390</span></span>
-<span><span class="co">#&gt;   logLik (last): 16229.890897</span></span></code></pre></div>
+<span><span class="co">#&gt;   ELBO (last)    : 13591.042390</span></span></code></pre></div>
 <p>When both forward and backward selection collapse back to a single
 ordering, that is strong evidence that the earlier higher-dimensional
 fit was mainly absorbing noise heterogeneity rather than revealing

@@ -25,3 +25,5 @@
 ^AGENTS\.md$
 ^PACKAGE_OVERVIEW_FOR_AGENTS\.md$
 ^CLAUDE.*$
+^\.positai$
+^\.claude$

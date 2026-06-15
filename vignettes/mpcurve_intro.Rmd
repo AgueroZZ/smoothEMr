@@ -47,16 +47,16 @@ The single-ordering MPCurve model assumes:
 2. each feature has a smooth trajectory over the \(K\) ordered components,
    written as
    \[
-   u_j = (u_{j1},\dots,u_{jK})^\top \in \mathbb{R}^K,
+   \boldsymbol{u}_j = (u_{j1},\dots,u_{jK})^\top \in \mathbb{R}^K,
    \]
 3. observations follow a Gaussian likelihood
    \[
-   x_{ij} \mid c_i = k, u_j, \sigma_j^2 \sim N(u_{jk}, \sigma_j^2),
+   x_{ij} \mid c_i = k, \boldsymbol{u}_j, \sigma_j^2 \sim N(u_{jk}, \sigma_j^2),
    \]
 4. and each trajectory is regularized by a Gaussian Markov random field prior
    along the component axis:
    \[
-   u_j \sim N\!\left(0, (\lambda_j Q_K)^{-1}\right),
+   \boldsymbol{u}_j \sim N\!\left(0, (\lambda_j Q_K)^{-1}\right),
    \]
    where \(Q_K\) is the random-walk precision matrix on the \(K\) bins.
 
@@ -67,7 +67,7 @@ In the current `cavi` implementation:
 - the covariance model is homoskedastic across components,
 - and the posterior is approximated with a mean-field family
   \[
-  q(C,U) = \prod_{i=1}^n q_i(c_i)\prod_{j=1}^d q_j(u_j).
+  q(C,U) = \prod_{i=1}^n q_i(c_i)\prod_{j=1}^d q_j(\boldsymbol{u}_j).
   \]
 
 ## 2  Variational algorithm
@@ -81,12 +81,12 @@ N_k := \sum_{i=1}^n r_{ik},
 \]
 and for each feature \(j\),
 \[
-q_j(u_j) = N(m_j, S_j).
+q_j(\boldsymbol{u}_j) = N(\boldsymbol{m}_j, S_j).
 \]
 
 Under the mean-field family
 \[
-q(C,U)=\prod_{i=1}^n q_i(c_i)\prod_{j=1}^d q_j(u_j),
+q(C,U)=\prod_{i=1}^n q_i(c_i)\prod_{j=1}^d q_j(\boldsymbol{u}_j),
 \]
 the ELBO can be written, up to additive constants, as
 \[
@@ -108,7 +108,7 @@ r_{ik}
 + \frac12 \sum_{j=1}^d
 \left[
 \operatorname{rank}(Q_K)\log \lambda_j
-- \lambda_j\Big(m_j^\top Q_K m_j + \operatorname{tr}(Q_K S_j)\Big)
+- \lambda_j\Big(\boldsymbol{m}_j^\top Q_K \boldsymbol{m}_j + \operatorname{tr}(Q_K S_j)\Big)
 + \log |S_j|
 \right].
 \]
@@ -116,14 +116,15 @@ r_{ik}
 This is the quantity recorded in `elbo_trace`. The updates used by the public
 backend are obtained by maximizing this ELBO one block at a time.
 
-### 2.1  Update for \(q(u_j)\)
+### 2.1  Update for \(q(\boldsymbol{u}_j)\)
 
 Fix \(r_{ik}\), \(\sigma_j^2\), and \(\lambda_j\). The ELBO terms involving
-\(u_j\) are quadratic, so the optimal variational factor is Gaussian:
+\(\boldsymbol{u}_j\) are quadratic, so the optimal variational factor is Gaussian:
 \[
-\log q_j^\star(u_j)
+\log q_j^\star(\boldsymbol{u}_j)
 =
--\frac12 u_j^\top A_j u_j + u_j^\top b_j + \text{const},
+-\frac12 \boldsymbol{u}_j^\top A_j \boldsymbol{u}_j
++ \boldsymbol{u}_j^\top \boldsymbol{b}_j + \text{const},
 \]
 where
 \[
@@ -142,7 +143,7 @@ Therefore,
 \[
 S_j = A_j^{-1},
 \qquad
-m_j = S_j b_j.
+\boldsymbol{m}_j = S_j \boldsymbol{b}_j.
 \]
 
 This is exactly the linear-algebra step implemented by the backend behind
@@ -204,14 +205,14 @@ Fixing \(q(U)\), only the prior part of the ELBO depends on \(\lambda_j\):
 \[
 \frac12 \operatorname{rank}(Q_K)\log \lambda_j
 - \frac12 \lambda_j
-\Big(m_j^\top Q_K m_j + \operatorname{tr}(Q_K S_j)\Big).
+\Big(\boldsymbol{m}_j^\top Q_K \boldsymbol{m}_j + \operatorname{tr}(Q_K S_j)\Big).
 \]
 Setting the derivative to zero yields
 \[
 \lambda_j
 =
 \frac{\operatorname{rank}(Q_K)}
-{m_j^\top Q_K m_j + \operatorname{tr}(Q_K S_j)}.
+{\boldsymbol{m}_j^\top Q_K \boldsymbol{m}_j + \operatorname{tr}(Q_K S_j)}.
 \]
 
 ### 2.6  Why the ELBO is monotone here
@@ -289,7 +290,7 @@ cat("ELBO range:", round(range(fit$elbo_trace), 3), "\n")
 We can also compare the inferred ordering to the true latent parameter using
 the posterior-mean component index
 \[
-\hat t_i = \sum_{k=1}^K k \, r_{ik}.
+\hat c_i = \sum_{k=1}^K k \, r_{ik}.
 \]
 
 ```{r ordering-recovery}
